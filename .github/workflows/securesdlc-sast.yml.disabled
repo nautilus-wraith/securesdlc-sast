@@ -1,0 +1,57 @@
+name: SecureSDLC SAST
+run-name: "[Required SecureSDLC Workflow] Ref:${{ github.ref_name }}"
+
+on:
+  workflow_dispatch: {}
+  workflow_call: {}
+  pull_request: {}
+  # pull_request_target: {} # Gives workflows excessive permissions. Not wanted.
+  push:
+    branches:
+      - '**' # Alternatively hardcode "main" instead of "if"s
+
+jobs:
+  SecureSDLC-SAST:
+    name: SecureSDLC SAST
+    if: >
+      github.actor != 'dependabot[bot]'
+    # if: >
+    #   github.event_name == 'push' &&
+    #   github.ref_name == github.event.repository.default_branch &&
+    #   github.actor != 'dependabot[bot]'
+    continue-on-error: true
+    runs-on: ubuntu-24.04
+    container:
+      image: ubuntu
+    permissions:
+      contents: read # Allow fetch only.
+    env:
+      SEMGREP_APP_URL: "testurl"
+    steps:
+      - uses: actions/checkout@v4
+      - name: SecureSDLC SAST
+        run: |
+          echo "SecureSDLC SAST"
+  SecureSDLC-SCA:
+    name: SecureSDLC SCA
+    if: >
+      github.actor != 'dependabot[bot]'
+    # if: >
+    #   github.event_name == 'push' &&
+    #   github.ref_name == github.event.repository.default_branch &&
+    #   github.actor != 'dependabot[bot]'
+    continue-on-error: true
+    runs-on: ubuntu-24.04
+    container:
+      image: ubuntu
+    permissions:
+      contents: read # for actions/checkout to fetch code
+    env:
+      SEMGREP_APP_URL: "testurl"
+    steps:
+      - uses: actions/checkout@v4
+      - name: SecureSDLC SCA
+        run: |
+          echo "SecureSDLC SCA"
+
+

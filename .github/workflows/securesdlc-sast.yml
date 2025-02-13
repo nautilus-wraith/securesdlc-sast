@@ -1,0 +1,64 @@
+name: SecureSDLC SAST
+run-name: "[Required SecureSDLC Workflow] Ref:${{ github.ref_name }} Event:${{ github.event_name }}"
+
+on:
+  workflow_dispatch: {}
+  workflow_call:
+    secrets:
+      SEMGREP_APP_URL:
+        required: true
+      SEMGREP_APP_TOKEN:
+        required: true
+  pull_request: {} # Target protected branch is defined in Required workflow setting
+  # pull_request_target: {} # Gives workflows excessive permissions. Not wanted.
+  push: # used for testing of this repo. Ignored in Required workflow
+    branches:
+      - '**' # Alternatively hardcode "main" instead of "if"s
+
+jobs:
+  semgrep:
+    name: SecureSDLC SAST
+    # if: ${{ github.actor != 'dependabot[bot]' }}
+    continue-on-error: true
+    runs-on: ubuntu-24.04
+    container:
+      image: semgrep/semgrep
+    permissions:
+      contents: read # for actions/checkout to fetch code
+      security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
+      actions: read # only required for a private repository by github/codeql-action/upload-sarif to get the Action run status
+    env:
+      SEMGREP_APP_URL: ${{ secrets.SEMGREP_APP_URL }}
+      SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Identify the last Committer
+        run: |
+          exit 0
+          LAST_COMMITTER=${{ github.actor }}
+          # Shortening last committer. Some committers are bots with long names or not permitted chars
+          LAST_COMMITTER_SHORTENED=$(echo "${LAST_COMMITTER:0:26}")
+          echo "LAST_COMMITTER_SHORTENED=$LAST_COMMITTER_SHORTENED" >> "$GITHUB_ENV"
+      - name: Generate Semgrep Tags
+        run: |
+          echo "Overwriting .semgrepconfig.yml"
+          cat <<EOF > .semgrepconfig.yml
+          tags:
+            - GitHub Action
+            - Last Committer $LAST_COMMITTER_SHORTENED
+            - ${{ github.repository_owner }}
+          EOF
+      - name: Run Semgrep scan
+        run: semgrep ci --metrics off --no-suppress-errors --sarif --output semgrep.sarif || true
+      - name: Upload Semgrep pipeline artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Semgrep scan results
+          path: semgrep.sarif
+          retention-days: 5
+      # Fails gracefully for private repos when GitHub Advanced Security is not enabled.
+      - name: Publish findings to the dashboard and annotate PRs
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+
