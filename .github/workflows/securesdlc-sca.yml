@@ -34,7 +34,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Identify the last Committer
         run: |
-          exit 0
           LAST_COMMITTER=${{ github.actor }}
           # Shortening last committer. Some committers are bots with long names or not permitted chars
           LAST_COMMITTER_SHORTENED=$(echo "${LAST_COMMITTER:0:26}")
