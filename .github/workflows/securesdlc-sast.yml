@@ -54,7 +54,7 @@ jobs:
       - name: Upload Semgrep pipeline artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Semgrep scan results
+          name: Semgrep SAST scan results
           path: semgrep.sarif
           retention-days: 5
       # Fails gracefully for private repos when GitHub Advanced Security is not enabled.
