@@ -1,5 +1,5 @@
-name: SecureSDLC SAST
-run-name: "[Required SecureSDLC SAST Workflow] Ref:${{ github.ref_name }} Event:${{ github.event_name }}"
+name: SecureSDLC SCA
+run-name: "[Required SecureSDLC SCA Workflow] Ref:${{ github.ref_name }} Event:${{ github.event_name }}"
 
 on:
   workflow_dispatch: {}
@@ -17,7 +17,7 @@ on:
 
 jobs:
   semgrep:
-    name: SecureSDLC SAST
+    name: SecureSDLC SCA
     # if: ${{ github.actor != 'dependabot[bot]' }}
     continue-on-error: true
     runs-on: ubuntu-24.04
@@ -49,7 +49,7 @@ jobs:
             - ${{ github.repository_owner }}
           EOF
       - name: Run Semgrep scan
-        run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif || true
+        run: semgrep ci --supply-chain --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif || true
 
       - name: Upload Semgrep pipeline artifact
         uses: actions/upload-artifact@v4
