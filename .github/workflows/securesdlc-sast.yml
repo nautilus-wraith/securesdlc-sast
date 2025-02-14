@@ -18,7 +18,7 @@ on:
 jobs:
   semgrep:
     name: SecureSDLC SAST
-    # if: ${{ github.actor != 'dependabot[bot]' }}
+    if: ${{ github.actor != 'dependabot[bot]' }}
     continue-on-error: true
     runs-on: ubuntu-24.04
     container:
