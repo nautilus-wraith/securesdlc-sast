@@ -1,5 +1,5 @@
 name: SecureSDLC SAST
-run-name: "[Required SecureSDLC Workflow] Ref:${{ github.ref_name }} Event:${{ github.event_name }}"
+run-name: "[Required SecureSDLC SAST Workflow] Ref:${{ github.ref_name }} Event:${{ github.event_name }}"
 
 on:
   workflow_dispatch: {}
