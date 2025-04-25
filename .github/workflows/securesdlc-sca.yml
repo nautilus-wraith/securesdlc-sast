@@ -9,7 +9,7 @@ on:
         required: true
       SEMGREP_APP_TOKEN:
         required: true
-  pull_request: {} # Target protected branch is defined in Required workflow setting
+  pull_request: {} 
   # pull_request_target: {} # Gives workflows excessive permissions. Not wanted.
   push: # used for testing of this repo. Ignored in Required workflow
     branches:
@@ -22,7 +22,7 @@ jobs:
     continue-on-error: true
     runs-on: ubuntu-24.04
     container:
-      image: returntocorp/semgrep:1.82.0
+      image: returntocorp/semgrep:1.120.0
     permissions:
       contents: read # for actions/checkout to fetch code
       security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
