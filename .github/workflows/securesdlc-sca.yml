@@ -1,5 +1,5 @@
 name: SecureSDLC SCA
-run-name: "[Required SecureSDLC SCA Workflow] Ref:${{ github.ref_name }} Event:${{ github.event_name }}"
+run-name: "[SecureSDLC SCA Workflow] Ref:${{ github.ref_name }} Event:${{ github.event_name }}"
 
 on:
   workflow_dispatch: {}
