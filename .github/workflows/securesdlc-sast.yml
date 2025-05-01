@@ -30,11 +30,11 @@ jobs:
     env:
       SEMGREP_APP_URL: ${{ secrets.SEMGREP_APP_URL }}
       SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+      LAST_COMMITTER: ${{ github.actor }}
     steps:
       - uses: actions/checkout@v4
       - name: Identify the last Committer
         run: |
-          LAST_COMMITTER=${{ github.actor }}
           # Shortening last committer. Some committers are bots with long names or not permitted chars
           LAST_COMMITTER_SHORTENED=$(echo "${LAST_COMMITTER:0:26}")
           echo "LAST_COMMITTER_SHORTENED=$LAST_COMMITTER_SHORTENED" >> "$GITHUB_ENV"
