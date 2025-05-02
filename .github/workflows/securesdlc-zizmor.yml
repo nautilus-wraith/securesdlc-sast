@@ -1,0 +1,36 @@
+name: GitHub Actions Security Analysis with zizmor 🌈
+
+on:
+  workflow_dispatch: {}
+  workflow_call: {}
+  pull_request: {}
+  # pull_request_target: {} # Gives workflows excessive permissions. Not wanted.
+  push: # Used for local testing.
+    branches:
+      - '**' 
+
+jobs:
+  zizmor:
+    name: zizmor latest via PyPI
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read # only needed for private repos
+      actions: read # only needed for private repos
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@c7f87aa956e4c323abf06d5dec078e358f6b4d04 # v6.0.0
+
+      - name: Run zizmor
+        run: uvx zizmor --format=sarif . > results.sarif 
+
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif
+          category: zizmor
