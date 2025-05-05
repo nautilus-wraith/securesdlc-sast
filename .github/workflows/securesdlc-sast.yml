@@ -48,16 +48,19 @@ jobs:
             - ${{ github.repository_owner }}
           EOF
       - name: Run Semgrep scan
-        run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif || true
+        # run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif || true
+        run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --json -o semgrep-findings.json || true
+      - name: Convert Semgrep JSON to SARIF  
+        run: python /transform/semgrep-json-to-sarif.py --json ./semgrep-findings.json --sarif ./semgrep-sarif.json
 
       - name: Upload Semgrep pipeline artifact
         uses: actions/upload-artifact@v4
         with:
           name: Semgrep SAST scan results
-          path: semgrep.sarif
+          path: semgrep-sarif.json
           retention-days: 5
       # Fails gracefully for private repos when GitHub Advanced Security is not enabled.
       - name: Publish findings to the dashboard and annotate PRs
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: semgrep.sarif
+          sarif_file: semgrep-sarif.json
