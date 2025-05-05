@@ -1,5 +1,5 @@
 name: SecureSDLC SAST
-run-name: "[SecureSDLC SAST Workflow] Ref:${{ github.ref_name }} Event:${{ github.event_name }}"
+run-name: "[SecureSDLC SAST] Ref:${{ github.ref_name }} Event:${{ github.event_name }}"
 
 on:
   workflow_dispatch: {}
@@ -49,7 +49,8 @@ jobs:
           EOF
       - name: Run Semgrep scan
         # run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif || true
-        run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --json -o semgrep-findings.json || true
+        # run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --json -o semgrep-findings.json || true
+        run: semgrep ci --json -o semgrep-findings.json || true
       - name: Debug Semgrep scan
         run: |
           echo "Semgrep scan results:"

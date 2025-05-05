@@ -1,4 +1,5 @@
 name: GitHub Actions Security Analysis with zizmor 🌈
+run-name: "[SecureSDLC Zizmor] Ref:${{ github.ref_name }} Event:${{ github.event_name }}"
 
 on:
   workflow_dispatch: {}
