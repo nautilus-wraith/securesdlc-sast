@@ -50,6 +50,14 @@ jobs:
       - name: Run Semgrep scan
         # run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif || true
         run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --json -o semgrep-findings.json || true
+      - name: Debug Semgrep scan
+        run: |
+          echo "Semgrep scan results:"
+          echo "----------------------------------------"
+          cat semgrep-findings.json
+          echo "Transform script:"
+          echo "----------------------------------------"
+          cat /transform/semgrep-json-to-sarif.py
       - name: Convert Semgrep JSON to SARIF  
         run: python /transform/semgrep-json-to-sarif.py --json ./semgrep-findings.json --sarif ./semgrep-sarif.json
 
