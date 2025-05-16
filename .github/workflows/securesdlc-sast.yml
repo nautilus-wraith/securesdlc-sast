@@ -75,13 +75,13 @@ jobs:
             - Last Committer $LAST_COMMITTER_SHORTENED
             - ${{ github.repository_owner }}
           EOF
-      - name: Run Semgrep scan
-        run: | # supress logs for public repositories
-              if [ ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }} ]; then
-                semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif > /dev/null 2>&1 || true
-              else
-                semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif || true
-              fi
+      - name: Run Semgrep scan (for non-public repositories)
+        if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }}
+        run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif || true
+
+      - name: Run Semgrep scan (for public repositories)
+        if: ${{ needs.securesdlc-visibility-check.outputs.visibility == 'public' }}
+        run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif > /dev/null 2>&1 || true
 
         # run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --json -o semgrep-findings.json || true
         # run: semgrep ci --json -o semgrep-findings.json || true
