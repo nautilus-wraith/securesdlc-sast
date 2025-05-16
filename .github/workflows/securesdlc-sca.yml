@@ -16,13 +16,41 @@ on:
       - '**' 
 
 jobs:
+  securesdlc-visibility-check:
+    runs-on: ubuntu-24.04
+    outputs:
+      visibility: ${{ steps.get_visibility.outputs.visibility }}
+    steps:
+      - name: Init
+        run: |
+          echo ${{ github.ref_name }}
+          echo ${{ github.event.repository.default_branch }}
+
+      - name: Get Repository Visibility
+        id: get_visibility
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { data: repo } = await github.rest.repos.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+            // The 'visibility' field can be 'public', 'private', or 'internal'
+            const visibility = repo.visibility;
+            console.log(`Repository visibility: ${visibility}`);
+            core.setOutput('visibility', visibility);
+
+      - name: Display Visibility
+        run: echo "Repository visibility is ${{ steps.get_visibility.outputs.visibility }}"
+
   semgrep:
     name: SecureSDLC SCA
+    needs: [securesdlc-visibility-check]    
     if: ${{ github.actor != 'dependabot[bot]' }}
     continue-on-error: true
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/nautilus-wraith/semgrep/semgrep-with-sarif-transform
+      image: ghcr.io/nautilus-wraith/semgrep/semgrep-with-sarif-transform:latest
     permissions:
       contents: read # for actions/checkout to fetch code
       security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
@@ -47,10 +75,17 @@ jobs:
             - Last Committer $LAST_COMMITTER_SHORTENED
             - ${{ github.repository_owner }}
           EOF
-      - name: Run Semgrep scan
+
+      - name: Run Semgrep scan (for non-public repositories)
+        if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }}
         run: semgrep ci --supply-chain --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif || true
 
+      - name: Run Semgrep scan (for public repositories)
+        if: ${{ needs.securesdlc-visibility-check.outputs.visibility == 'public' }}
+        run: semgrep ci --supply-chain --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif > /dev/null 2>&1 || true
+
       - name: Upload Semgrep pipeline artifact
+        if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }}
         uses: actions/upload-artifact@v4
         with:
           name: Semgrep SCA scan results
@@ -58,6 +93,7 @@ jobs:
           retention-days: 5
       # Fails gracefully for private repos when GitHub Advanced Security is not enabled.
       - name: Publish findings to the dashboard and annotate PRs
+        if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }}      
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: semgrep.sarif
