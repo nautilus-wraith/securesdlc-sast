@@ -48,7 +48,7 @@ jobs:
             - ${{ github.repository_owner }}
           EOF
       - name: Run Semgrep scan
-        run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif /dev/null 2>&1 || true
+        run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif > /dev/null 2>&1 || true
         # run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --json -o semgrep-findings.json || true
         # run: semgrep ci --json -o semgrep-findings.json || true
       # - name: Debug Semgrep scan
