@@ -76,11 +76,11 @@ jobs:
             - ${{ github.repository_owner }}
           EOF
 
-      - name: Run Semgrep scan (for non-public repositories)
+      - name: Run Semgrep SCA scan (for non-public repositories) # more verbose
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }}
         run: semgrep ci --supply-chain --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif || true
 
-      - name: Run Semgrep scan (for public repositories)
+      - name: Run Semgrep SCA scan (for public repositories) # suppress output
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility == 'public' }}
         run: semgrep ci --supply-chain --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif > /dev/null 2>&1 || true
 

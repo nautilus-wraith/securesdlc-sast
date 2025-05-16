@@ -75,11 +75,11 @@ jobs:
             - Last Committer $LAST_COMMITTER_SHORTENED
             - ${{ github.repository_owner }}
           EOF
-      - name: Run Semgrep scan (for non-public repositories)
+      - name: Run Semgrep SAST scan (for non-public repositories) # more verbose
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }}
         run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif || true
 
-      - name: Run Semgrep scan (for public repositories)
+      - name: Run Semgrep SAST scan (for public repositories) # suppressed output
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility == 'public' }}
         run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif > /dev/null 2>&1 || true
 
@@ -97,8 +97,8 @@ jobs:
           path: semgrep.sarif
           retention-days: 5
       # Fails gracefully for private repos when GitHub Advanced Security is not enabled.
-      - name: Publish findings to the dashboard and annotate PRs
-        if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }}      
+      - name: Publish findings to the dashboard and annotate PRs # allowed for non-public repos and public repos when not a public PR
+        if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }} || (${{ needs.securesdlc-visibility-check.outputs.visibility == 'public' && github.event_name != 'pull_request' }})
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: semgrep.sarif
