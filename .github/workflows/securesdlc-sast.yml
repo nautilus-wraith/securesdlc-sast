@@ -16,8 +16,36 @@ on:
       - '**' 
 
 jobs:
+  securesdlc-visibility-check:
+    runs-on: ubuntu-24.04
+    outputs:
+      visibility: ${{ steps.get_visibility.outputs.visibility }}
+    steps:
+      - name: Init
+        run: |
+          echo ${{ github.ref_name }}
+          echo ${{ github.event.repository.default_branch }}
+
+      - name: Get Repository Visibility
+        id: get_visibility
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { data: repo } = await github.rest.repos.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+            // The 'visibility' field can be 'public', 'private', or 'internal'
+            const visibility = repo.visibility;
+            console.log(`Repository visibility: ${visibility}`);
+            core.setOutput('visibility', visibility);
+
+      - name: Display Visibility
+        run: echo "Repository visibility is ${{ steps.get_visibility.outputs.visibility }}"
+
   semgrep:
     name: SecureSDLC SAST
+    needs: [securesdlc-visibility-check]
     if: ${{ github.actor != 'dependabot[bot]' }}
     continue-on-error: true
     runs-on: ubuntu-24.04
@@ -48,32 +76,31 @@ jobs:
             - ${{ github.repository_owner }}
           EOF
       - name: Run Semgrep scan
-        run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif > /dev/null 2>&1 || true
+        run: | # supress logs for public repositories
+              if [ ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }} ]; then
+                semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif > /dev/null 2>&1 || true
+              else
+                semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif || true
+              fi
+
         # run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --json -o semgrep-findings.json || true
         # run: semgrep ci --json -o semgrep-findings.json || true
-      # - name: Debug Semgrep scan
-      #   run: |
-      #     echo "Semgrep scan results:"
-      #     echo "----------------------------------------"
-      #     cat semgrep-findings.json
-      #     echo "----------------------------------------"
-      #     echo "Transform script:"
-      #     echo "----------------------------------------"
-      #     cat /transform/semgrep-json-to-sarif.py
+
       # - name: Convert Semgrep JSON to SARIF  
-      #   run: python /transform/semgrep-json-to-sarif.py --json ./semgrep-findings.json --sarif ./semgrep-sarif.json
+      #   run: python /transform/semgrep-json-to-sarif.py --json ./semgrep-findings.json --sarif ./semgrep.sarif
 
       - name: Upload Semgrep pipeline artifact
+        if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }}
         uses: actions/upload-artifact@v4
         with:
           name: Semgrep SAST scan results
           path: semgrep.sarif
-          # path: semgrep-sarif.json          
           retention-days: 5
       # Fails gracefully for private repos when GitHub Advanced Security is not enabled.
       - name: Publish findings to the dashboard and annotate PRs
+        if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }}      
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: semgrep.sarif
-          # sarif_file: semgrep-sarif.json
+
 
