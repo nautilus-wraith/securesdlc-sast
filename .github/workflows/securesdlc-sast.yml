@@ -87,13 +87,14 @@ jobs:
       - name: Convert SARIF severities
         run: |
           jq '(.runs[].tool.driver.rules[]?) |=
-              (.properties.severity =
-                (if .defaultConfiguration.level == "error" then "critical"
-                elif .defaultConfiguration.level == "warning" then "medium"
-                elif .defaultConfiguration.level == "note" then "low"
-                elif .defaultConfiguration.level == "none" then "none"
-                else .defaultConfiguration.level end)
-              )' semgrep.sarif > semgrep-severities-updated.sarif
+            (.properties["security-severity"] =
+              (if .defaultConfiguration.level == "error" then 9.0
+              elif .defaultConfiguration.level == "warning" then 6.0
+              elif .defaultConfiguration.level == "note" then 3.0
+              else 0.0 end)
+            )' semgrep.sarif > semgrep-severities-updated.sarif
+
+          cat semgrep-severities-updated.sarif
 
         # run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --json -o semgrep-findings.json || true
         # run: semgrep ci --json -o semgrep-findings.json || true
