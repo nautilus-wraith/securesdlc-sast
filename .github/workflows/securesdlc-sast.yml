@@ -84,6 +84,15 @@ jobs:
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility == 'public' }}
         run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif > /dev/null 2>&1 || true
 
+      - name: Convert SARIF severities
+        run: |
+          jq '(.runs[].tool.driver.rules[]?.defaultConfiguration.level) |=
+          (if . == "error" then "critical"
+          elif . == "warning" then "medium"
+          elif . == "note" then "low"
+          elif . == "none" then "none"
+          else . end)' semgrep.sarif > semgrep-severities-updated.sarif
+
         # run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --json -o semgrep-findings.json || true
         # run: semgrep ci --json -o semgrep-findings.json || true
 
@@ -95,13 +104,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Semgrep SAST scan results
-          path: semgrep.sarif
+          path: semgrep-severities-updated.sarif
           retention-days: 5
       # Fails gracefully for private repos when GitHub Advanced Security is not enabled. We can not split dashbaord and PR annotations - be careful about public PRs.
       - name: Publish findings to the dashboard and annotate PRs # allowed for non-public repos and public repos only when not a PR
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' || (needs.securesdlc-visibility-check.outputs.visibility == 'public' && github.event_name != 'pull_request') }}
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: semgrep.sarif
+          sarif_file: semgrep-severities-updated.sarif
 
 
