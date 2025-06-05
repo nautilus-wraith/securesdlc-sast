@@ -72,7 +72,7 @@ jobs:
           jq '(.runs[].tool.driver.name) = "Zizmor (SecureSDLC)"' zizmor-severities-updated.sarif > zizmor-final.sarif
 
       - name: Upload Zizmor artifact
-        # if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }}
+        if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }}
         uses: actions/upload-artifact@v4
         with:
           name: Zizmor scan results
@@ -81,7 +81,7 @@ jobs:
 
       # Fails gracefully for private repos when GitHub Advanced Security is not enabled. We can not split dashbaord and PR annotations - be careful about public PRs.
       - name: Publish findings to the dashboard and annotate PRs # allowed for non-public repos and public repos only when not a PR
-        # if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' || (needs.securesdlc-visibility-check.outputs.visibility == 'public' && github.event_name != 'pull_request') }}
+        if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' || (needs.securesdlc-visibility-check.outputs.visibility == 'public' && github.event_name != 'pull_request') }}
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: zizmor-final.sarif 
