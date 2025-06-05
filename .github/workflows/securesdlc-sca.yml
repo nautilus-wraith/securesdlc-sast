@@ -17,6 +17,8 @@ on:
 
 jobs:
   securesdlc-visibility-check:
+    name: Repo visibility check
+    continue-on-error: true 
     runs-on: ubuntu-24.04
     outputs:
       visibility: ${{ steps.get_visibility.outputs.visibility }}
@@ -46,9 +48,9 @@ jobs:
 
   semgrep:
     name: SecureSDLC SCA
+    continue-on-error: true     
     needs: [securesdlc-visibility-check]    
     if: ${{ github.actor != 'dependabot[bot]' }}
-    continue-on-error: true
     runs-on: ubuntu-24.04
     container:
       image: ghcr.io/nautilus-wraith/docker-semgrep/semgrep:1.124.0

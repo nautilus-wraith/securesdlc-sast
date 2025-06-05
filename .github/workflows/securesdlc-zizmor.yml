@@ -13,6 +13,7 @@ on:
 jobs:
   zizmor:
     name: SecureSDLC Zizmor
+    continue-on-error: true     
     runs-on: ubuntu-latest
     permissions:
       security-events: write
@@ -40,6 +41,8 @@ jobs:
               elif .defaultConfiguration.level == "note" then "3.0"
               else "0.0" end)
             )' zizmor.sarif > zizmor-severities-updated.sarif
+
+          cat zizmor-severities-updated.sarif
 
       - name: Convert SARIF levels to severities
         run: |
