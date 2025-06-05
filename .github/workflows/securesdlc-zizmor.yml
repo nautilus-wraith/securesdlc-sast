@@ -36,31 +36,36 @@ jobs:
       - name: Convert SARIF levels to severities
         run: |
           jq '
-            def level_score(level):
-              if level == "error" then 3
-              elif level == "warning" then 2
-              elif level == "note" or level == "none" then 1
-              else 0 end;
+          def level_score(level):
+            if level == "error" then 3
+            elif level == "warning" then 2
+            elif level == "note" or level == "none" then 1
+            else 0 end;
 
-            def score_to_severity(score):
-              if score == 3 then "8.0"
-              elif score == 2 then "6.0"
-              elif score == 1 then "3.0"
-              else "0.0" end;
+          def score_to_severity(score):
+            if score == 3 then "8.0"
+            elif score == 2 then "6.0"
+            elif score == 1 then "3.0"
+            else "0.0" end;
 
-            # Step 1: build map of ruleId → max severity score
-            [.runs[].results[]? | {ruleId, level: level_score(.level)}]
+          # Extract ruleId → max severity score map
+          . as $root
+          | $root.runs[0].results
+            | map({ruleId, score: level_score(.level)})
             | group_by(.ruleId)
-            | map({(.[0].ruleId): (map(.level) | max)})
-            | add as $severity_map
+            | map({ (.[0].ruleId): (map(.score) | max) })
+            | add
+            as $severity_map
 
-            # Step 2: update rules[].properties["security-severity"]
-            | .runs[].tool.driver.rules[]? |= (
+          # Apply it to the rules section
+          | $root
+          | .runs[0].tool.driver.rules |=
+              map(
                 if .id and ($severity_map[.id]? != null) then
                   .properties["security-severity"] = score_to_severity($severity_map[.id])
                 else . end
               )
-            ' zizmor.sarif > zizmor-severities-updated.sarif
+          ' zizmor.sarif > zizmor-severities-updated.sarif
 
           cat zizmor-severities-updated.sarif
 
