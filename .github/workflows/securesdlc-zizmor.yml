@@ -35,17 +35,36 @@ jobs:
       # https://docs.github.com/en/code-security/code-scanning/integrating-with-code-scanning/sarif-support-for-code-scanning
       - name: Convert SARIF levels to severities
         run: |
-          jq '(.runs[].tool.driver.rules[]?) |=
-            (.properties["security-severity"] =
-              (if .defaultConfiguration.level == "error" then "8.0"
-              elif .defaultConfiguration.level == "warning" then "6.0"
-              elif .defaultConfiguration.level == "note" then "3.0"
-              else "0.0" end)
-            )' zizmor.sarif > zizmor-severities-updated.sarif
+          jq '
+            def level_score(level):
+              if level == "error" then 3
+              elif level == "warning" then 2
+              elif level == "note" or level == "none" then 1
+              else 0 end;
+
+            def score_to_severity(score):
+              if score == 3 then "8.0"
+              elif score == 2 then "6.0"
+              elif score == 1 then "3.0"
+              else "0.0" end;
+
+            # Step 1: build map of ruleId → max severity score
+            [.runs[].results[]? | {ruleId, level: level_score(.level)}]
+            | group_by(.ruleId)
+            | map({(.[0].ruleId): (map(.level) | max)})
+            | add as $severity_map
+
+            # Step 2: update rules[].properties["security-severity"]
+            | .runs[].tool.driver.rules[]? |= (
+                if .id and ($severity_map[.id]? != null) then
+                  .properties["security-severity"] = score_to_severity($severity_map[.id])
+                else . end
+              )
+            ' zizmor.sarif > zizmor-severities-updated.sarif
 
           cat zizmor-severities-updated.sarif
 
-      - name: Convert SARIF levels to severities
+      - name: Convert SARIF tool name
         run: |
           jq '(.runs[].tool.driver.name) = "Zizmor (SecureSDLC)"' zizmor-severities-updated.sarif > zizmor-final.sarif
 

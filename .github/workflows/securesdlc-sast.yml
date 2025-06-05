@@ -97,7 +97,7 @@ jobs:
               else "0.0" end)
             )' semgrep.sarif > semgrep-severities-updated.sarif
 
-      - name: Convert SARIF levels to severities
+      - name: Convert SARIF tool name
         run: |
           jq '(.runs[].tool.driver.name) = "Code (SecureSDLC)"' semgrep-severities-updated.sarif > semgrep-final.sarif
 
