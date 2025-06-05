@@ -84,7 +84,8 @@ jobs:
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility == 'public' }}
         run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif > /dev/null 2>&1 || true
 
-      - name: Convert SARIF severities
+      # https://docs.github.com/en/code-security/code-scanning/integrating-with-code-scanning/sarif-support-for-code-scanning
+      - name: Convert SARIF levels to severities
         run: |
           jq '(.runs[].tool.driver.rules[]?) |=
             (.properties["security-severity"] =
@@ -93,8 +94,6 @@ jobs:
               elif .defaultConfiguration.level == "note" then "3.0"
               else "0.0" end)
             )' semgrep.sarif > semgrep-severities-updated.sarif
-
-          cat semgrep-severities-updated.sarif
 
       - name: Upload Semgrep pipeline artifact
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }}
