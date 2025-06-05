@@ -33,13 +33,13 @@ jobs:
       # https://docs.github.com/en/code-security/code-scanning/integrating-with-code-scanning/sarif-support-for-code-scanning
       - name: Convert SARIF levels to severities
         run: |
-          jq '(.runs[].results[]? | select(.level != null)) |=
-                (.level =
-                  (if .level == "error" then "high"
-                  elif .level == "warning" then "medium"
-                  elif .level == "note" or .level == "none" then "low"
-                  else .level end)
-                )' zizmor.sarif > zizmor-severities-updated.sarif
+          jq '(.runs[].tool.driver.rules[]?) |=
+            (.properties["security-severity"] =
+              (if .defaultConfiguration.level == "error" then "8.0"
+              elif .defaultConfiguration.level == "warning" then "6.0"
+              elif .defaultConfiguration.level == "note" then "3.0"
+              else "0.0" end)
+            )' zizmor.sarif > zizmor-severities-updated.sarif
 
       - name: Convert SARIF levels to severities
         run: |
