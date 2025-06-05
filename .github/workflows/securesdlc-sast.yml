@@ -51,7 +51,7 @@ jobs:
     continue-on-error: true
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/nautilus-wraith/docker-semgrep/semgrep-with-sarif-transform:latest
+      image: ghcr.io/nautilus-wraith/docker-semgrep/semgrep:1.124.0
     permissions:
       contents: read # for actions/checkout to fetch code
       security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
@@ -84,18 +84,30 @@ jobs:
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility == 'public' }}
         run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif > /dev/null 2>&1 || true
 
+      - name: Convert SARIF severities
+        run: |
+          jq '(.runs[].tool.driver.rules[]?) |=
+            (.properties["security-severity"] =
+              (if .defaultConfiguration.level == "error" then "8.0"
+              elif .defaultConfiguration.level == "warning" then "6.0"
+              elif .defaultConfiguration.level == "note" then "3.0"
+              else "0.0" end)
+            )' semgrep.sarif > semgrep-severities-updated.sarif
+
+          cat semgrep-severities-updated.sarif
+
       - name: Upload Semgrep pipeline artifact
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }}
         uses: actions/upload-artifact@v4
         with:
           name: Semgrep SAST scan results
-          path: semgrep.sarif
+          path: semgrep-severities-updated.sarif
           retention-days: 5
       # Fails gracefully for private repos when GitHub Advanced Security is not enabled. We can not split dashbaord and PR annotations - be careful about public PRs.
       - name: Publish findings to the dashboard and annotate PRs # allowed for non-public repos and public repos only when not a PR
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' || (needs.securesdlc-visibility-check.outputs.visibility == 'public' && github.event_name != 'pull_request') }}
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: semgrep.sarif
+          sarif_file: semgrep-severities-updated.sarif
 
 
