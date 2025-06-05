@@ -28,10 +28,21 @@ jobs:
         uses: astral-sh/setup-uv@c7f87aa956e4c323abf06d5dec078e358f6b4d04 # v6.0.0
 
       - name: Run zizmor
-        run: uvx zizmor --format=sarif . > results.sarif 
+        run: uvx zizmor --format=sarif . > zizmor-final.sarif 
 
-      - name: Upload SARIF file
+      - name: Upload Zizmor artifact
+        # if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Zizmor scan results
+          path: zizmor-final.sarif 
+          retention-days: 5
+
+      # Fails gracefully for private repos when GitHub Advanced Security is not enabled. We can not split dashbaord and PR annotations - be careful about public PRs.
+      - name: Publish findings to the dashboard and annotate PRs # allowed for non-public repos and public repos only when not a PR
+        # if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' || (needs.securesdlc-visibility-check.outputs.visibility == 'public' && github.event_name != 'pull_request') }}
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: results.sarif
+          sarif_file: zizmor-final.sarif 
           category: zizmor
+

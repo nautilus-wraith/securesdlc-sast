@@ -99,13 +99,14 @@ jobs:
         run: |
           jq '(.runs[].tool.driver.name) = "Code (SecureSDLC)"' semgrep-severities-updated.sarif > semgrep-final.sarif
 
-      - name: Upload Semgrep pipeline artifact
+      - name: Upload Semgrep artifact
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }}
         uses: actions/upload-artifact@v4
         with:
           name: Semgrep SAST scan results
           path: semgrep-final.sarif
           retention-days: 5
+          
       # Fails gracefully for private repos when GitHub Advanced Security is not enabled. We can not split dashbaord and PR annotations - be careful about public PRs.
       - name: Publish findings to the dashboard and annotate PRs # allowed for non-public repos and public repos only when not a PR
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' || (needs.securesdlc-visibility-check.outputs.visibility == 'public' && github.event_name != 'pull_request') }}
