@@ -95,18 +95,22 @@ jobs:
               else "0.0" end)
             )' semgrep.sarif > semgrep-severities-updated.sarif
 
+      - name: Convert SARIF levels to severities
+        run: |
+          jq '(.runs[].tool.driver.name) = "Code (SecureSDLC)"' semgrep-severities-updated.sarif > semgrep-final.sarif
+
       - name: Upload Semgrep pipeline artifact
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }}
         uses: actions/upload-artifact@v4
         with:
           name: Semgrep SAST scan results
-          path: semgrep-severities-updated.sarif
+          path: semgrep-final.sarif
           retention-days: 5
       # Fails gracefully for private repos when GitHub Advanced Security is not enabled. We can not split dashbaord and PR annotations - be careful about public PRs.
       - name: Publish findings to the dashboard and annotate PRs # allowed for non-public repos and public repos only when not a PR
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' || (needs.securesdlc-visibility-check.outputs.visibility == 'public' && github.event_name != 'pull_request') }}
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: semgrep-severities-updated.sarif
+          sarif_file: semgrep-final.sarif
 
 
