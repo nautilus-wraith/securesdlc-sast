@@ -67,8 +67,6 @@ jobs:
               )
           ' zizmor.sarif > zizmor-severities-updated.sarif
 
-          cat zizmor-severities-updated.sarif
-
       - name: Convert SARIF tool name
         run: |
           jq '(.runs[].tool.driver.name) = "Zizmor (SecureSDLC)"' zizmor-severities-updated.sarif > zizmor-final.sarif
