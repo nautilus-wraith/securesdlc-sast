@@ -1,4 +1,5 @@
 # securesdlc-sast
-Secure SDLC SAST
+
+SecureSDLC SAST/SCA
 
 
