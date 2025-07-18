@@ -88,7 +88,8 @@ jobs:
             - $GITHUB_REPOSITORY_OWNER
           EOF
 
-      - name: Run Semgrep SCA scan (for public repositories) # suppress output
+      - name: Run Semgrep SCA scan # suppressed output
+        timeout-minutes: 10
         run: semgrep ci --supply-chain --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif > /dev/null 2>&1 || true
 
       # https://docs.github.com/en/code-security/code-scanning/integrating-with-code-scanning/sarif-support-for-code-scanning
