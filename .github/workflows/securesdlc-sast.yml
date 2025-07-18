@@ -15,8 +15,6 @@ on:
     branches:
       - '**' 
 
-permissions: {}
-
 jobs:
   securesdlc-visibility-check:
     name: Repo visibility check
