@@ -15,8 +15,6 @@ on:
     branches:
       - '**' 
 
-permissions: {}
-
 jobs:
   securesdlc-visibility-check:
     name: Repo visibility check
@@ -89,12 +87,9 @@ jobs:
             - Last Committer $LAST_COMMITTER_SHORTENED
             - $GITHUB_REPOSITORY_OWNER
           EOF
-      - name: Run Semgrep SAST scan (for non-public repositories) # more verbose
-        if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }}
-        run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif || true
 
-      - name: Run Semgrep SAST scan (for public repositories) # suppressed output
-        if: ${{ needs.securesdlc-visibility-check.outputs.visibility == 'public' }}
+      - name: Run Semgrep SAST scan # suppressed output
+        timeout-minutes: 10
         run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif > /dev/null 2>&1 || true
 
       # https://docs.github.com/en/code-security/code-scanning/integrating-with-code-scanning/sarif-support-for-code-scanning
