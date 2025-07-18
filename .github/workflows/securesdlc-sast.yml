@@ -79,7 +79,7 @@ jobs:
             - ${{ github.repository_owner }}
           EOF
 
-      - name: Run Semgrep SAST scan (for public repositories) # suppressed output
+      - name: Run Semgrep SAST scan # suppressed output
         run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif > /dev/null 2>&1 || true
 
       # https://docs.github.com/en/code-security/code-scanning/integrating-with-code-scanning/sarif-support-for-code-scanning
