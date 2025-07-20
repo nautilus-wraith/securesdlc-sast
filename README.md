@@ -2,4 +2,3 @@
 
 SecureSDLC SAST/SCA
 
-
