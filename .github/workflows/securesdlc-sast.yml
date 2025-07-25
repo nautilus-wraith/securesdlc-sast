@@ -31,6 +31,7 @@ jobs:
     steps:
       - name: Init
         run: |
+          exit 1
           echo $GITHUB_REF_NAME
           echo $GITHUB_DEFAULT_BRANCH
           echo $GITHUB_EVENT_NAME
