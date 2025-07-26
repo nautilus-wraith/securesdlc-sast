@@ -105,8 +105,28 @@ jobs:
 
       - name: Convert SARIF tool name
         run: |
-          jq '(.runs[].tool.driver.name) = "Code (SecureSDLC)"' semgrep-severities-updated.sarif > semgrep-final.sarif
+          jq '(.runs[].tool.driver.name) = "Code (SecureSDLC)"' semgrep-severities-updated.sarif > semgrep-tool-name-updated.sarif
 
+      - name: Convert Vulnerability name in the dashboard
+        run: |
+          jq '
+            .runs[0].tool.driver.rules[] |=
+              if .shortDescription.text | startswith("Semgrep Finding: ") then
+                .shortDescription.text = (
+                  .shortDescription.text |
+                  ltrimstr("Semgrep Finding: ") |  # Remove prefix
+                  split(".") |                    # Split by dots
+                  .[-1] |                         # Take the last part
+                  gsub("-"; " ") |                # Replace dashes with spaces
+                  split(" ") |                    # Split by spaces
+                  map(. as $w | ($w[0:1] | ascii_upcase) + ($w[1:])) |  # Capitalize first letter
+                  join(" ")                       # Join back with spaces
+                )
+              else
+                .
+              end
+          ' semgrep-tool-name-updated.sarif > semgrep-final.sarif
+         
       - name: Upload Semgrep artifact
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }}
         uses: actions/upload-artifact@v4
