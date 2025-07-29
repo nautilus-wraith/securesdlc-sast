@@ -105,7 +105,45 @@ jobs:
 
       - name: Convert SARIF tool name
         run: |
-          jq '(.runs[].tool.driver.name) = "Supply Chain (SecureSDLC)"' semgrep-severities-updated.sarif > semgrep-final.sarif
+          jq '(.runs[].tool.driver.name) = "Supply Chain (SecureSDLC)"' semgrep-severities-updated.sarif > semgrep-tool-name-updated.sarif
+
+      - name: Convert Vulnerability name in the dashboard
+        run: |
+          jq '
+            .runs[0].tool.driver.rules[] |=
+              if .shortDescription.text | startswith("Semgrep Finding: ") then
+                .shortDescription.text = (
+                  # Extract CWE from tags array
+                  (.properties.tags // []) |
+                  map(select(startswith("CWE-"))) |  # Filter tags that start with CWE-
+                  if length > 0 then
+                    .[-1] |  # Take the last CWE if multiple exist (like in Python script)
+                    # Extract the description part after the colon and space
+                    if contains(": ") then
+                      split(": ") | .[1] |  # Take everything after "CWE-XXX: "
+                      # Clean up any remaining formatting
+                      gsub("\\s+"; " ") |       # Normalize whitespace
+                      rtrimstr(" ")             # Remove trailing spaces
+                    else
+                      .  # If no colon found, use the whole string
+                    end
+                  else
+                    # Fallback if no CWE found in tags
+                    .shortDescription.text |
+                    ltrimstr("Semgrep Finding: ") |  # Remove prefix
+                    split(".") |                    # Split by dots
+                    .[-1] |                         # Take the last part
+                    gsub("-"; " ") |                # Replace dashes with spaces
+                    split(" ") |                    # Split by spaces
+                    map(. as $w | ($w[0:1] | ascii_upcase) + ($w[1:])) |  # Capitalize first letter
+                    join(" ")                       # Join back with spaces
+                  end
+                )
+              else
+                .
+              end
+          ' semgrep-tool-name-updated.sarif > semgrep-final.sarif
+
 
       - name: Upload Semgrep artifact
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }}
