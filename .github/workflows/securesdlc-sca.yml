@@ -331,37 +331,8 @@ jobs:
           echo "Converting SARIF to enricher format..."
           jq '{
             "results": [.runs[0].results[] | 
-              . + {"check_id": .ruleId} | del(.ruleId) |
-              .locations = [.locations[] | {
-                "path": .physicalLocation.artifactLocation.uri,
-                "start": {
-                  "line": .physicalLocation.region.startLine,
-                  "col": .physicalLocation.region.startColumn
-                },
-                "end": {
-                  "line": .physicalLocation.region.endLine,
-                  "col": .physicalLocation.region.endColumn
-                }
-              }]
-            ],
-            "errors": .errors,
-            "skipped_rules": [],
-            "version": .version
-          }' ./semgrep/semgrep-final.sarif > semgrep-enricher-format.json
-          
-          echo "Generated enricher format:"
-          cat semgrep-enricher-format.json
-          echo ""
-          
-          echo "=== Showing line numbers around line 27 ==="
-          cat -n semgrep-enricher-format.json | sed -n '20,35p'
-          echo ""
-          
-          echo "=== Trying correct flattened format ==="
-          jq '{
-            "results": [.runs[0].results[] | 
-              . + {"check_id": .ruleId} | del(.ruleId) |
-              . + {
+              {
+                "check_id": .ruleId,
                 "path": .locations[0].physicalLocation.artifactLocation.uri,
                 "start": {
                   "line": .locations[0].physicalLocation.region.startLine,
@@ -371,44 +342,58 @@ jobs:
                   "line": .locations[0].physicalLocation.region.endLine,
                   "col": .locations[0].physicalLocation.region.endColumn
                 },
-                "offset": {
-                  "start": (.locations[0].physicalLocation.region.startColumn // 1),
-                  "end": (.locations[0].physicalLocation.region.endColumn // 1)
-                }
-              } | del(.locations)
+                "message": .message,
+                "properties": .properties,
+                "fingerprints": .fingerprints
+              }
             ],
             "errors": .errors,
             "skipped_rules": [],
             "version": .version
-          }' ./semgrep/semgrep-final.sarif > semgrep-enricher-format-correct.json
+          }' ./semgrep/semgrep-final.sarif > semgrep-enricher-format-flattened.json
           
-          echo "Correct flattened format (first 50 lines):"
-          head -50 semgrep-enricher-format-correct.json
+          echo "=== Completely flattened format ==="
+          head -40 semgrep-enricher-format-flattened.json
           echo ""
           
-          echo "=== Testing correct flattened format ==="
+          echo "=== Testing completely flattened format ==="
           /app/sdlc-sca-enricher \
-            --semgrep-findings semgrep-enricher-format-correct.json \
+            --semgrep-findings semgrep-enricher-format-flattened.json \
             --epss-file /app/epss_scores-current.csv \
-            -o enriched_results_correct.json \
-            --min-value 0.8 && echo "✅ CORRECT FORMAT WORKED!" || echo "❌ Still failing, need more debugging"
+            -o enriched_results_flattened.json \
+            --min-value 0.8 && echo "✅ Flattened format SUCCESS!" || echo "❌ Still failing, checking what field is missing now"
           
-          if [ -f enriched_results_correct.json ]; then
-            echo "SUCCESS! Using correct format results"
-            cp enriched_results_correct.json enriched_results.json
+          if [ -f enriched_results_flattened.json ]; then
+            echo "SUCCESS! Using flattened format results"
+            cp enriched_results_flattened.json enriched_results.json
           else
-            echo "Still failing - trying with RUST_BACKTRACE for more details..."
-            RUST_BACKTRACE=1 /app/sdlc-sca-enricher \
-              --semgrep-findings semgrep-enricher-format-correct.json \
-              --epss-file /app/epss_scores-current.csv \
-              -o enriched_results_debug.json \
-              --min-value 0.8 || true
-            echo "Falling back to original format test..."
+            echo "Flattened format failed too. Let's see the exact error and try one more approach..."
+            echo "=== Trying minimal format with just required fields ==="
+            jq '{
+              "results": [.runs[0].results[] | 
+                {
+                  "check_id": .ruleId,
+                  "path": .locations[0].physicalLocation.artifactLocation.uri,
+                  "start": {
+                    "line": .locations[0].physicalLocation.region.startLine,
+                    "col": .locations[0].physicalLocation.region.startColumn
+                  },
+                  "end": {
+                    "line": .locations[0].physicalLocation.region.endLine,
+                    "col": .locations[0].physicalLocation.region.endColumn
+                  }
+                }
+              ],
+              "errors": .errors,
+              "skipped_rules": [],
+              "version": .version
+            }' ./semgrep/semgrep-final.sarif > semgrep-enricher-format-minimal.json
+            
             /app/sdlc-sca-enricher \
-              --semgrep-findings semgrep-enricher-format.json \
+              --semgrep-findings semgrep-enricher-format-minimal.json \
               --epss-file /app/epss_scores-current.csv \
-              -o enriched_results.json \
-              --min-value 0.8 || true
+              -o enriched_results_minimal.json \
+              --min-value 0.8 && cp enriched_results_minimal.json enriched_results.json || echo "Even minimal format failed"
           fi
 
       - name: Convert enriched results for GitHub Dashboard
