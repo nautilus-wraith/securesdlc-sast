@@ -330,7 +330,7 @@ jobs:
           
           echo "Converting SARIF to enricher format..."
           jq '{
-            "results": .runs[0].results,
+            "results": [.runs[0].results[] | . + {"check_id": .ruleId} | del(.ruleId)],
             "errors": .errors,
             "skipped_rules": [],
             "version": .version
