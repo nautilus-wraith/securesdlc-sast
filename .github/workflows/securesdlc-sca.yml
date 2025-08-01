@@ -209,6 +209,8 @@ jobs:
     permissions:
       contents: read
       security-events: write
+      actions: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -348,6 +350,11 @@ jobs:
             echo "✅ Enriched results found, using them for GitHub upload"
             # The enricher with --platform github outputs SARIF directly
             cp enriched_results.json ./semgrep/semgrep-final.sarif
+            
+            # Log enrichment results (without exposing vulnerability details)
+            echo "🔍 Enrichment Statistics:"
+            echo "Original results: $(jq '.runs[0].results | length' ./semgrep/semgrep-final.sarif)"
+            echo "Post-enrichment file size: $(wc -c < ./semgrep/semgrep-final.sarif) bytes"
           else
             echo "❌ No enriched results found, falling back to original SARIF"
           fi
@@ -363,6 +370,8 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: ./semgrep/semgrep-github.sarif
+          wait-for-processing: false
+        continue-on-error: true
 
       - name: Check Slack webhook availability
         id: slack-check-enricher
