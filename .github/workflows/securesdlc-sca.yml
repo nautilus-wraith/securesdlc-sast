@@ -353,11 +353,53 @@ jobs:
           cat semgrep-enricher-format.json
           echo ""
           
+          echo "=== Showing line numbers around line 27 ==="
+          cat -n semgrep-enricher-format.json | sed -n '20,35p'
+          echo ""
+          
+          echo "=== Trying alternative format - start/end at result level ==="
+          jq '{
+            "results": [.runs[0].results[] | 
+              . + {"check_id": .ruleId} | del(.ruleId) |
+              . + {
+                "path": .locations[0].physicalLocation.artifactLocation.uri,
+                "start": {
+                  "line": .locations[0].physicalLocation.region.startLine,
+                  "col": .locations[0].physicalLocation.region.startColumn
+                },
+                "end": {
+                  "line": .locations[0].physicalLocation.region.endLine,
+                  "col": .locations[0].physicalLocation.region.endColumn
+                }
+              }
+            ],
+            "errors": .errors,
+            "skipped_rules": [],
+            "version": .version
+          }' ./semgrep/semgrep-final.sarif > semgrep-enricher-format-alt.json
+          
+          echo "Alternative format:"
+          head -30 semgrep-enricher-format-alt.json
+          echo ""
+          
+          echo "=== Testing alternative format ==="
+          /app/sdlc-sca-enricher \
+            --semgrep-findings semgrep-enricher-format-alt.json \
+            --epss-file /app/epss_scores-current.csv \
+            -o enriched_results_alt.json \
+            --min-value 0.8 && echo "✅ Alternative format WORKED!" || echo "❌ Alternative format failed, trying original"
+          
+          if [ ! -f enriched_results_alt.json ]; then
+            echo "Falling back to original format..."
           /app/sdlc-sca-enricher \
             --semgrep-findings semgrep-enricher-format.json \
             --epss-file /app/epss_scores-current.csv \
             -o enriched_results.json \
             --min-value 0.8
+          else
+            echo "Using successful alternative format results"
+            cp enriched_results_alt.json enriched_results.json
+          fi
 
       - name: Convert enriched results for GitHub Dashboard
         run: |
