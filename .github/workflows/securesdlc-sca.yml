@@ -338,9 +338,42 @@ jobs:
           if [ -f ./semgrep/semgrep-final.sarif ]; then
             echo "SARIF file exists"
             echo "File size: $(wc -c < ./semgrep/semgrep-final.sarif) bytes"
+            
             # Test if it's valid JSON
             if jq empty ./semgrep/semgrep-final.sarif 2>/dev/null; then
               echo "SARIF file is valid JSON"
+              
+              # Show top-level structure
+              echo "=== Top-level SARIF keys ==="
+              jq 'keys' ./semgrep/semgrep-final.sarif
+              
+              # Show runs structure
+              echo "=== Runs array length ==="
+              jq '.runs | length' ./semgrep/semgrep-final.sarif
+              
+              if [ "$(jq '.runs | length' ./semgrep/semgrep-final.sarif)" -gt 0 ]; then
+                echo "=== First run keys ==="
+                jq '.runs[0] | keys' ./semgrep/semgrep-final.sarif
+                
+                echo "=== Tool structure ==="
+                jq '.runs[0].tool | keys' ./semgrep/semgrep-final.sarif
+                
+                echo "=== Results field check ==="
+                if jq -e '.runs[0] | has("results")' ./semgrep/semgrep-final.sarif > /dev/null; then
+                  echo "✅ Results field exists"
+                  echo "Results count: $(jq '.runs[0].results | length' ./semgrep/semgrep-final.sarif)"
+                else
+                  echo "❌ Results field is missing!"
+                fi
+                
+                echo "=== Errors field check ==="
+                if jq -e 'has("errors")' ./semgrep/semgrep-final.sarif > /dev/null; then
+                  echo "✅ Errors field exists"
+                else
+                  echo "❌ Errors field is missing!"
+                fi
+              fi
+              
             else
               echo "ERROR: SARIF file is not valid JSON"
               echo "First 500 characters of file:"
