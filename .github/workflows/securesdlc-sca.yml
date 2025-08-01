@@ -346,7 +346,8 @@ jobs:
                 },
                 "message": .message,
                 "properties": .properties,
-                "fingerprints": .fingerprints
+                "fingerprints": .fingerprints,
+                "extra": {}
               }
             ],
             "errors": .errors,
@@ -354,22 +355,22 @@ jobs:
             "version": .version
           }' ./semgrep/semgrep-final.sarif > semgrep-enricher-format-flattened.json
           
-          echo "=== Flattened format with offset ==="
-          head -20 semgrep-enricher-format-flattened.json
+          echo "=== Flattened format with offset and extra ==="
+          head -25 semgrep-enricher-format-flattened.json
           echo ""
           
-          echo "=== Testing flattened format with offset ==="
+          echo "=== Testing flattened format with offset and extra ==="
           /app/sdlc-sca-enricher \
             --semgrep-findings semgrep-enricher-format-flattened.json \
             --epss-file /app/epss_scores-current.csv \
             -o enriched_results_flattened.json \
-            --min-value 0.8 && echo "✅ SUCCESS with offset!" || echo "❌ Still missing fields..."
+            --min-value 0.8 && echo "✅ SUCCESS with offset and extra!" || echo "❌ Still missing fields..."
           
           if [ -f enriched_results_flattened.json ]; then
-            echo "SUCCESS! Using flattened format with offset"
+            echo "SUCCESS! Using flattened format with offset and extra"
             cp enriched_results_flattened.json enriched_results.json
           else
-            echo "Still failing. Let's try minimal format with offset..."
+            echo "Still failing. Let's try minimal format with offset and extra..."
             jq '{
               "results": [.runs[0].results[] | 
                 {
@@ -384,7 +385,8 @@ jobs:
                     "line": .locations[0].physicalLocation.region.endLine,
                     "col": .locations[0].physicalLocation.region.endColumn,
                     "offset": 0
-                  }
+                  },
+                  "extra": {}
                 }
               ],
               "errors": .errors,
@@ -396,7 +398,7 @@ jobs:
               --semgrep-findings semgrep-enricher-format-minimal.json \
               --epss-file /app/epss_scores-current.csv \
               -o enriched_results_minimal.json \
-              --min-value 0.8 && cp enriched_results_minimal.json enriched_results.json || echo "Still failing even with offset"
+              --min-value 0.8 && cp enriched_results_minimal.json enriched_results.json || echo "Still failing even with offset and extra"
           fi
 
       - name: Convert enriched results for GitHub Dashboard
