@@ -211,6 +211,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install bash for Slack notifications
+        run: apk add --no-cache bash > /dev/null 2>&1
+
       - name: Download Semgrep Artifact (Non-public repos only)
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }}
         uses: actions/download-artifact@v4
@@ -225,7 +228,7 @@ jobs:
           SEMGREP_APP_URL: ${{ secrets.SEMGREP_APP_URL }}
           SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
         run: |
-          # Install jq for SARIF processing
+          # Install jq for SARIF processing  
           apk add --no-cache jq > /dev/null 2>&1
           
           # Create semgrep directory
@@ -306,17 +309,39 @@ jobs:
               end
           ' semgrep-tool-name-updated.sarif > ./semgrep/semgrep-final.sarif
 
+      - name: Validate SARIF file
+        run: |
+          echo "Checking SARIF file exists and is valid JSON..."
+          if [ -f ./semgrep/semgrep-final.sarif ]; then
+            echo "SARIF file exists"
+            echo "File size: $(wc -c < ./semgrep/semgrep-final.sarif) bytes"
+            # Test if it's valid JSON
+            if jq empty ./semgrep/semgrep-final.sarif 2>/dev/null; then
+              echo "SARIF file is valid JSON"
+            else
+              echo "ERROR: SARIF file is not valid JSON"
+              echo "First 500 characters of file:"
+              head -c 500 ./semgrep/semgrep-final.sarif
+            fi
+          else
+            echo "ERROR: SARIF file does not exist"
+          fi
+
       - name: Enrich with EPSS scores
         run: |
+          echo "Starting enrichment process..."
           /app/sdlc-sca-enricher \
             --semgrep-findings ./semgrep/semgrep-final.sarif \
             --epss-file /app/epss_scores-current.csv \
             -o enriched_results.json \
-            --min-value 0.8 > /dev/null 2>&1
+            --min-value 0.8
+          echo "Enrichment completed successfully"
 
       - name: Convert enriched results for GitHub Dashboard
         run: |
-          python3 /app/scaGitLabScript.py enriched_results.json > /dev/null 2>&1
+          echo "Converting results for dashboard..."
+          python3 /app/scaGitLabScript.py enriched_results.json
+          echo "Conversion completed successfully"
 
       - name: Upload enriched SARIF to GitHub
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' || (needs.securesdlc-visibility-check.outputs.visibility == 'public' && github.event_name != 'pull_request') }}
