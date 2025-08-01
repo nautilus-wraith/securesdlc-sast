@@ -178,6 +178,18 @@ jobs:
           path: semgrep-final.sarif
           retention-days: 5
           
+      - name: Notify in Slack on failure
+        if: failure()
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SDLC_SLACK_NOTIFICATIONS }}
+        uses: nautilus-wraith/securesdlc-helpers/.github/actions/healthcheck@release-stable
+        with:
+          github_workflow: ${{ github.workflow }}
+          github_repository: ${{ github.repository }}
+          github_run_id: ${{ github.run_id }}
+          step_conclusion: failure()
+          slack_webhook: ${{ secrets.SDLC_SLACK_NOTIFICATIONS }}
+
   enricher:
     name: Enrich Semgrep Findings
     needs: [semgrep]
@@ -219,16 +231,6 @@ jobs:
         with:
           sarif_file: gl-dependency-scanning-report.json
 
-      - name: Notify in Slack on failure
-        if: failure()
-        uses: nautilus-wraith/securesdlc-helpers/.github/actions/healthcheck@release-stable
-        with:
-          github_workflow: ${{ github.workflow }}
-          github_repository: ${{ github.repository }}
-          github_run_id: ${{ github.run_id }}
-          step_conclusion: failure()
-          slack_webhook: ${{ secrets.SDLC_SLACK_NOTIFICATIONS }}
-
       # Fails gracefully for private repos when GitHub Advanced Security is not enabled. We can not split dashbaord and PR annotations - be careful about public PRs.
       - name: Publish findings to the dashboard and annotate PRs # allowed for non-public repos and public repos only when not a PR
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' || (needs.securesdlc-visibility-check.outputs.visibility == 'public' && github.event_name != 'pull_request') }}
@@ -237,7 +239,9 @@ jobs:
           sarif_file: semgrep-final.sarif
 
       - name: Notify in Slack on failure
-        if: failure() && secrets.SDLC_SLACK_NOTIFICATIONS != ''
+        if: failure()
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SDLC_SLACK_NOTIFICATIONS }}
         uses: nautilus-wraith/securesdlc-helpers/.github/actions/healthcheck@release-stable
         with:
           github_workflow: ${{ github.workflow }}
