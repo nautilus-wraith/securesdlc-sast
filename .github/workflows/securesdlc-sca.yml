@@ -347,7 +347,7 @@ jobs:
                 "message": .message,
                 "properties": .properties,
                 "fingerprints": .fingerprints,
-                "fingerprint": .fingerprints["matchBasedId/v1"],
+                "fingerprint": (.fingerprints["matchBasedId/v1"] // "unknown"),
                 "extra": {
                   "engine_kind": "semgrep"
                 }
@@ -358,22 +358,27 @@ jobs:
             "version": .version
           }' ./semgrep/semgrep-final.sarif > semgrep-enricher-format-flattened.json
           
-          echo "=== Flattened format with fingerprint (singular) ==="
+          echo "=== Flattened format with fingerprint fallback ==="
           head -35 semgrep-enricher-format-flattened.json
           echo ""
           
-          echo "=== Testing flattened format with fingerprint ==="
+          echo "=== Checking all results have fingerprint field ==="
+          echo "Results with missing fingerprint field:"
+          jq -r '.results[] | select(.fingerprint == null or .fingerprint == "") | "Missing fingerprint for check_id: " + .check_id' semgrep-enricher-format-flattened.json
+          echo ""
+          
+          echo "=== Testing flattened format with fingerprint fallback ==="
           /app/sdlc-sca-enricher \
             --semgrep-findings semgrep-enricher-format-flattened.json \
             --epss-file /app/epss_scores-current.csv \
             -o enriched_results_flattened.json \
-            --min-value 0.8 && echo "✅ SUCCESS with fingerprint!" || echo "❌ Still missing fields..."
+            --min-value 0.8 && echo "✅ SUCCESS with fingerprint fallback!" || echo "❌ Still missing fields..."
           
           if [ -f enriched_results_flattened.json ]; then
             echo "🎉 FINALLY SUCCESS! Using flattened format with all required fields"
             cp enriched_results_flattened.json enriched_results.json
           else
-            echo "Still failing. Let's try minimal format with fingerprint..."
+            echo "Still failing. Let's try minimal format with fingerprint fallback..."
             jq '{
               "results": [.runs[0].results[] | 
                 {
@@ -389,7 +394,7 @@ jobs:
                     "col": .locations[0].physicalLocation.region.endColumn,
                     "offset": 0
                   },
-                  "fingerprint": .fingerprints["matchBasedId/v1"],
+                  "fingerprint": (.fingerprints["matchBasedId/v1"] // "unknown"),
                   "extra": {
                     "engine_kind": "semgrep"
                   }
@@ -404,7 +409,7 @@ jobs:
               --semgrep-findings semgrep-enricher-format-minimal.json \
               --epss-file /app/epss_scores-current.csv \
               -o enriched_results_minimal.json \
-              --min-value 0.8 && cp enriched_results_minimal.json enriched_results.json || echo "Still failing even with fingerprint"
+              --min-value 0.8 && cp enriched_results_minimal.json enriched_results.json || echo "Still failing even with fingerprint fallback"
           fi
 
       - name: Convert enriched results for GitHub Dashboard
