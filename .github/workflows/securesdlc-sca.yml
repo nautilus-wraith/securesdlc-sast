@@ -339,7 +339,7 @@ jobs:
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' || (needs.securesdlc-visibility-check.outputs.visibility == 'public' && github.event_name != 'pull_request') }}
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: semgrep-final.sarif
+          sarif_file: ./semgrep/semgrep-final.sarif
 
       - name: Check Slack webhook availability
         id: slack-check-enricher
