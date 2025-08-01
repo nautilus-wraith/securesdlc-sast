@@ -9,6 +9,8 @@ on:
         required: true
       SEMGREP_APP_TOKEN:
         required: true
+      SDLC_SLACK_NOTIFICATIONS:
+        required: false
   pull_request: {} 
   # pull_request_target: {} # Gives workflows excessive permissions. Not wanted.
   push: # Used for local testing.
@@ -92,6 +94,30 @@ jobs:
         timeout-minutes: 10
         run: semgrep ci --supply-chain --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif > /dev/null 2>&1 || true
 
+      - name: Create empty SARIF if none exists
+        run: |
+          if [ ! -f semgrep.sarif ]; then
+            echo "No semgrep.sarif found, creating empty SARIF file"
+            cat <<EOF > semgrep.sarif
+          {
+            "version": "2.1.0",
+            "runs": [
+              {
+                "tool": {
+                  "driver": {
+                    "name": "Semgrep",
+                    "version": "1.0.0",
+                    "rules": []
+                  }
+                },
+                "results": []
+              }
+            ],
+            "errors": []
+          }
+          EOF
+          fi
+
       # https://docs.github.com/en/code-security/code-scanning/integrating-with-code-scanning/sarif-support-for-code-scanning
       - name: Convert SARIF levels to severities
         run: |
@@ -107,8 +133,170 @@ jobs:
         run: |
           jq '(.runs[].tool.driver.name) = "Supply Chain (SecureSDLC)"' semgrep-severities-updated.sarif > semgrep-tool-name-updated.sarif
 
-      - name: Convert Vulnerability name in the dashboard
+      - name: Add errors field for enricher compatibility
         run: |
+          jq '. + {"errors": []}' semgrep-tool-name-updated.sarif > semgrep-final.sarif
+
+
+      - name: Upload Semgrep artifact
+        if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Semgrep SCA scan results
+          path: semgrep-final.sarif
+          retention-days: 5
+          
+      - name: Check Slack webhook availability
+        id: slack-check-semgrep
+        if: failure()
+        run: |
+          if [ -n "${{ secrets.SDLC_SLACK_NOTIFICATIONS }}" ]; then
+            echo "webhook-available=true" >> $GITHUB_OUTPUT
+          else
+            echo "webhook-available=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Notify in Slack on failure
+        if: failure() && steps.slack-check-semgrep.outputs.webhook-available == 'true'
+        uses: nautilus-wraith/securesdlc-helpers/.github/actions/healthcheck@release-stable
+        with:
+          github_workflow: ${{ github.workflow }}
+          github_repository: ${{ github.repository }}
+          github_run_id: ${{ github.run_id }}
+          step_conclusion: failure()
+          slack_webhook: ${{ secrets.SDLC_SLACK_NOTIFICATIONS }}
+
+  enricher:
+    name: Enrich Semgrep Findings
+    needs: [semgrep, securesdlc-visibility-check]
+    runs-on: ubuntu-24.04
+    if: ${{ github.actor != 'dependabot[bot]' }}
+    container:
+      image: ghcr.io/nautilus-wraith/docker-semgrep/sca-enricher:latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install bash for Slack notifications
+        run: apk add --no-cache bash > /dev/null 2>&1
+
+      - name: Install jq for SARIF processing
+        run: apk add --no-cache jq > /dev/null 2>&1
+
+      - name: Download Semgrep Artifact (Non-public repos only)
+        if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: Semgrep SCA scan results
+          path: ./semgrep
+
+      - name: Generate Semgrep SARIF for public repos
+        if: ${{ needs.securesdlc-visibility-check.outputs.visibility == 'public' }}
+        timeout-minutes: 10
+        env:
+          SEMGREP_APP_URL: ${{ secrets.SEMGREP_APP_URL }}
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+        run: |
+          # Install jq for SARIF processing  
+          apk add --no-cache jq > /dev/null 2>&1
+          
+          # Create semgrep directory
+          mkdir -p ./semgrep
+          
+          # Generate .semgrepconfig.yml (same as semgrep job)
+          cat <<EOF > .semgrepconfig.yml
+          tags:
+            - GitHub Action
+            - Last Committer ${{ github.actor }}
+            - ${{ github.repository_owner }}
+          EOF
+          
+          # Run semgrep scan
+          semgrep ci --supply-chain --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep-raw.sarif > /dev/null 2>&1 || true
+          
+          # Create empty SARIF if none exists
+          if [ ! -f semgrep-raw.sarif ]; then
+            echo "No semgrep-raw.sarif found, creating empty SARIF file"
+            cat <<EOF > semgrep-raw.sarif
+          {
+            "version": "2.1.0",
+            "runs": [
+              {
+                "tool": {
+                  "driver": {
+                    "name": "Semgrep",
+                    "version": "1.0.0",
+                    "rules": []
+                  }
+                },
+                "results": []
+              }
+            ],
+            "errors": []
+          }
+          EOF
+          fi
+          
+          # Apply the same transformations as the semgrep job
+          jq '(.runs[].tool.driver.rules[]?) |=
+            (.properties["security-severity"] =
+              (if .defaultConfiguration.level == "error" then "8.0"
+              elif .defaultConfiguration.level == "warning" then "6.0"
+              elif .defaultConfiguration.level == "note" then "3.0"
+              else "0.0" end)
+            )' semgrep-raw.sarif > semgrep-severities-updated.sarif
+          
+          jq '(.runs[].tool.driver.name) = "Supply Chain (SecureSDLC)"' semgrep-severities-updated.sarif > semgrep-tool-name-updated.sarif
+          
+          # Add errors field for enricher compatibility
+          jq '. + {"errors": []}' semgrep-tool-name-updated.sarif > ./semgrep/semgrep-final.sarif
+
+      - name: Enrich with EPSS scores
+        run: |
+          echo "Starting enrichment process..."
+          
+          if [ -f ./semgrep/semgrep-final.sarif ]; then
+            echo "✅ SARIF file exists, proceeding with enrichment"
+            echo "File size: $(wc -c < ./semgrep/semgrep-final.sarif) bytes"
+            echo "Results count: $(jq '.runs[0].results | length' ./semgrep/semgrep-final.sarif)"
+            
+            # FIXED: Add --platform github to parse SARIF format correctly
+            /app/sdlc-sca-enricher \
+              --platform github \
+              --semgrep-findings ./semgrep/semgrep-final.sarif \
+              --write-destination enriched_results.json \
+              --min-value 0.85 \
+              --epss-file /app/epss_scores-current.csv > /dev/null 2>&1
+              
+            echo "✅ Enrichment completed successfully"
+          else
+            echo "❌ No SARIF file found"
+            exit 1
+          fi
+
+      - name: Convert enriched results for GitHub Dashboard
+        run: |
+          echo "Converting enriched SARIF results for GitHub upload..."
+          
+          if [ -f enriched_results.json ]; then
+            echo "✅ Enriched results found, using them for GitHub upload"
+            # The enricher with --platform github outputs SARIF directly
+            cp enriched_results.json ./semgrep/semgrep-final.sarif
+            
+            # Log enrichment results (without exposing vulnerability details)
+            echo "🔍 Enrichment Statistics:"
+            echo "Original results: $(jq '.runs[0].results | length' ./semgrep/semgrep-final.sarif)"
+            echo "Post-enrichment file size: $(wc -c < ./semgrep/semgrep-final.sarif) bytes"
+          else
+            echo "❌ No enriched results found, falling back to original SARIF"
+          fi
+
+      - name: Convert Vulnerability names in the dashboard (Post-Enrichment)
+        run: |
+          echo "🏷️ Converting vulnerability names to human-readable format..."
           jq '
             .runs[0].tool.driver.rules[] |=
               if .shortDescription.text | startswith("Semgrep Finding: ") then
@@ -142,30 +330,43 @@ jobs:
               else
                 .
               end
-          ' semgrep-tool-name-updated.sarif > semgrep-final.sarif
-
-
-      - name: Upload Semgrep artifact
-        if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: Semgrep SCA scan results
-          path: semgrep-final.sarif
-          retention-days: 5
+          ' ./semgrep/semgrep-final.sarif > ./semgrep/semgrep-names-converted.sarif
           
+          # Replace the final SARIF with the name-converted version
+          mv ./semgrep/semgrep-names-converted.sarif ./semgrep/semgrep-final.sarif
+          echo "✅ Vulnerability names converted successfully"
+
+      - name: Create clean SARIF for GitHub upload
+        run: |
+          # Remove the top-level errors field for GitHub compatibility
+          jq 'del(.errors)' ./semgrep/semgrep-final.sarif > ./semgrep/semgrep-github.sarif
+
       # Fails gracefully for private repos when GitHub Advanced Security is not enabled. We can not split dashbaord and PR annotations - be careful about public PRs.
       - name: Publish findings to the dashboard and annotate PRs # allowed for non-public repos and public repos only when not a PR
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' || (needs.securesdlc-visibility-check.outputs.visibility == 'public' && github.event_name != 'pull_request') }}
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: semgrep-final.sarif
+          sarif_file: ./semgrep/semgrep-github.sarif
+          wait-for-processing: false
+        continue-on-error: true
 
-      - name: Notify in Slack on failure
+      - name: Check Slack webhook availability
+        id: slack-check-enricher
         if: failure()
+        run: |
+          if [ -n "${{ secrets.SDLC_SLACK_NOTIFICATIONS }}" ]; then
+            echo "webhook-available=true" >> $GITHUB_OUTPUT
+          else
+            echo "webhook-available=false" >> $GITHUB_OUTPUT
+          fi
+    
+      - name: Notify in Slack on failure
+        if: failure() && steps.slack-check-enricher.outputs.webhook-available == 'true'
         uses: nautilus-wraith/securesdlc-helpers/.github/actions/healthcheck@release-stable
         with:
           github_workflow: ${{ github.workflow }}
           github_repository: ${{ github.repository }}
           github_run_id: ${{ github.run_id }}
-          step_conclusion: ${{ steps.failing.conclusion }}
+          step_conclusion: failure()
           slack_webhook: ${{ secrets.SDLC_SLACK_NOTIFICATIONS }}          
+
