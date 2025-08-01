@@ -319,11 +319,32 @@ jobs:
 
       - name: Enrich with EPSS scores
         run: |
-          echo "=== Original SARIF structure for private repo ==="
+          echo "=== Repository path debugging ==="
+          if [ "${{ needs.securesdlc-visibility-check.outputs.visibility }}" = "public" ]; then
+            echo "🔓 Processing PUBLIC repository - SARIF generated locally"
+          else
+            echo "🔒 Processing PRIVATE repository - SARIF from artifact"
+          fi
+          
+          echo "=== Verifying semgrep-final.sarif exists ==="
+          if [ -f ./semgrep/semgrep-final.sarif ]; then
+            echo "✅ semgrep-final.sarif found"
+            echo "File size: $(wc -c < ./semgrep/semgrep-final.sarif) bytes"
+            echo "Line count: $(wc -l < ./semgrep/semgrep-final.sarif) lines"
+          else
+            echo "❌ semgrep-final.sarif NOT FOUND"
+            echo "Contents of ./semgrep directory:"
+            ls -la ./semgrep/ 2>/dev/null || echo "Directory doesn't exist"
+            exit 1
+          fi
+          
+          echo "=== Original SARIF structure ==="
           echo "SARIF keys:"
           jq 'keys' ./semgrep/semgrep-final.sarif
           echo "First run keys:"
           jq '.runs[0] | keys' ./semgrep/semgrep-final.sarif
+          echo "Results count in SARIF:"
+          jq '.runs[0].results | length' ./semgrep/semgrep-final.sarif
           echo "Sample SARIF content:"
           jq '.' ./semgrep/semgrep-final.sarif | head -20
           echo ""
@@ -393,6 +414,22 @@ jobs:
             sed -n '25,30p' semgrep-enricher-format-flattened.json | cat -n
             echo "=== Character at column 7 of line 28 ==="
             sed -n '28p' semgrep-enricher-format-flattened.json | cut -c7 | cat -v
+            
+            echo "=== Detailed fingerprint analysis for ALL results ==="
+            echo "Results that have fingerprints object but no fingerprint field:"
+            jq -r '.results[] | select(.fingerprints and (.fingerprint == null or .fingerprint == "")) | "❌ Missing fingerprint: " + .check_id + " - has fingerprints: " + (.fingerprints | keys | join(","))' semgrep-enricher-format-flattened.json
+            
+            echo "Results with fingerprints structure:"
+            jq -r '.results[0:5] | .[] | "Result " + .check_id + " fingerprints keys: " + (.fingerprints | keys | join(",")) + " - fingerprint value: " + (.fingerprint // "NULL")' semgrep-enricher-format-flattened.json
+            
+            echo "=== Checking original SARIF for fingerprint consistency ==="
+            echo "Original SARIF results with fingerprint structures:"
+            jq -r '.runs[0].results[0:5] | .[] | "SARIF " + .ruleId + " fingerprints: " + (if .fingerprints then (.fingerprints | keys | join(",")) else "NO_FINGERPRINTS" end)' ./semgrep/semgrep-final.sarif
+            
+            echo "=== Raw structure of result that might be failing ==="
+            echo "Looking at results around line 28..."
+            # Try to find which result index corresponds to line 28
+            jq -r '.results[1:4] | .[] | "check_id: " + .check_id + "\nfingerprint: " + (.fingerprint // "NULL") + "\nfingerprints keys: " + (if .fingerprints then (.fingerprints | keys | join(",")) else "NO_FINGERPRINTS" end) + "\n---"' semgrep-enricher-format-flattened.json
           fi
           
           if [ -f enriched_results_flattened.json ]; then
