@@ -319,6 +319,15 @@ jobs:
 
       - name: Enrich with EPSS scores
         run: |
+          echo "=== Original SARIF structure for private repo ==="
+          echo "SARIF keys:"
+          jq 'keys' ./semgrep/semgrep-final.sarif
+          echo "First run keys:"
+          jq '.runs[0] | keys' ./semgrep/semgrep-final.sarif
+          echo "Sample SARIF content:"
+          jq '.' ./semgrep/semgrep-final.sarif | head -20
+          echo ""
+          
           echo "Converting SARIF to enricher format..."
           jq '{
             "results": .runs[0].results,
@@ -327,11 +336,15 @@ jobs:
             "version": .version
           }' ./semgrep/semgrep-final.sarif > semgrep-enricher-format.json
           
+          echo "Generated enricher format:"
+          cat semgrep-enricher-format.json
+          echo ""
+          
           /app/sdlc-sca-enricher \
             --semgrep-findings semgrep-enricher-format.json \
             --epss-file /app/epss_scores-current.csv \
             -o enriched_results.json \
-            --min-value 0.8 > /dev/null 2>&1
+            --min-value 0.8
 
       - name: Convert enriched results for GitHub Dashboard
         run: |
