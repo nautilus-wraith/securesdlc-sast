@@ -388,23 +388,7 @@ jobs:
             echo "ERROR: SARIF file does not exist"
           fi
 
-      - name: Enrich with EPSS scores
-        run: |
-          echo "Starting enrichment process..."
-          /app/sdlc-sca-enricher \
-            --semgrep-findings ./semgrep/semgrep-final.sarif \
-            --epss-file /app/epss_scores-current.csv \
-            -o enriched_results.json \
-            --min-value 0.8
-          echo "Enrichment completed successfully"
-
-      - name: Convert enriched results for GitHub Dashboard
-        run: |
-          echo "Converting results for dashboard..."
-          python3 /app/scaGitLabScript.py enriched_results.json
-          echo "Conversion completed successfully"
-
-      - name: Extract run for enricher (alternative approach)
+      - name: Test enricher format requirements
         run: |
           echo "=== Testing alternative 1: extract just the run object ==="
           jq '.runs[0]' ./semgrep/semgrep-final.sarif > semgrep-run-only.json
@@ -447,6 +431,22 @@ jobs:
             --epss-file /app/epss_scores-current.csv \
             -o enriched_results_test3.json \
             --min-value 0.8 && echo "✅ Flattened approach WORKED!" || echo "❌ Flattened approach failed"
+
+      - name: Enrich with EPSS scores
+        run: |
+          echo "Starting enrichment process..."
+          /app/sdlc-sca-enricher \
+            --semgrep-findings ./semgrep/semgrep-final.sarif \
+            --epss-file /app/epss_scores-current.csv \
+            -o enriched_results.json \
+            --min-value 0.8
+          echo "Enrichment completed successfully"
+
+      - name: Convert enriched results for GitHub Dashboard
+        run: |
+          echo "Converting results for dashboard..."
+          python3 /app/scaGitLabScript.py enriched_results.json
+          echo "Conversion completed successfully"
 
       - name: Upload enriched SARIF to GitHub
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' || (needs.securesdlc-visibility-check.outputs.visibility == 'public' && github.event_name != 'pull_request') }}
