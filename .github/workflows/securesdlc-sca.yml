@@ -449,6 +449,24 @@ jobs:
             -o enriched_results_test4.json \
             --min-value 0.8 && echo "✅ Custom enricher format WORKED!" || echo "❌ Custom enricher format failed"
 
+          echo "=== Testing alternative 5: custom enricher format with version ==="
+          jq '{
+            "results": .runs[0].results,
+            "errors": .errors,
+            "skipped_rules": [],
+            "version": .version
+          }' ./semgrep/semgrep-final.sarif > semgrep-enricher-format-v2.json
+          echo "Enricher format with version JSON:"
+          cat semgrep-enricher-format-v2.json
+          echo ""
+          
+          echo "=== Trying enricher with custom format + version ==="
+          /app/sdlc-sca-enricher \
+            --semgrep-findings semgrep-enricher-format-v2.json \
+            --epss-file /app/epss_scores-current.csv \
+            -o enriched_results_test5.json \
+            --min-value 0.8 && echo "✅ Custom enricher format with version WORKED!" || echo "❌ Custom enricher format with version failed"
+
       - name: Enrich with EPSS scores
         run: |
           echo "Starting enrichment process..."
