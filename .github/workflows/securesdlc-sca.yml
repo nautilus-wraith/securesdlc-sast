@@ -270,10 +270,6 @@ jobs:
           fi
           
           # Apply the same transformations as the semgrep job
-          echo "=== Raw SARIF structure ===" 
-          jq 'keys' semgrep-raw.sarif
-          jq '.runs[0] | keys' semgrep-raw.sarif
-          
           jq '(.runs[].tool.driver.rules[]?) |=
             (.properties["security-severity"] =
               (if .defaultConfiguration.level == "error" then "8.0"
@@ -282,15 +278,7 @@ jobs:
               else "0.0" end)
             )' semgrep-raw.sarif > semgrep-severities-updated.sarif
           
-          echo "=== After severity update ===" 
-          jq 'keys' semgrep-severities-updated.sarif
-          jq '.runs[0] | keys' semgrep-severities-updated.sarif
-          
           jq '(.runs[].tool.driver.name) = "Supply Chain (SecureSDLC)"' semgrep-severities-updated.sarif > semgrep-tool-name-updated.sarif
-          
-          echo "=== After tool name update ===" 
-          jq 'keys' semgrep-tool-name-updated.sarif
-          jq '.runs[0] | keys' semgrep-tool-name-updated.sarif
           
           jq '
             (.runs[0].tool.driver.rules[] |=
@@ -326,162 +314,25 @@ jobs:
             if has("errors") then . else . + {"errors": []} end
           ' semgrep-tool-name-updated.sarif > ./semgrep/semgrep-final.sarif
 
-          echo "=== Final SARIF structure ===" 
-          jq 'keys' ./semgrep/semgrep-final.sarif
-          jq '.runs[0] | keys' ./semgrep/semgrep-final.sarif
-          echo "=== Sample of final SARIF ===" 
-          jq '.' ./semgrep/semgrep-final.sarif | head -20
-
-      - name: Validate SARIF file
+      - name: Enrich with EPSS scores
         run: |
-          echo "Checking SARIF file exists and is valid JSON..."
-          if [ -f ./semgrep/semgrep-final.sarif ]; then
-            echo "SARIF file exists"
-            echo "File size: $(wc -c < ./semgrep/semgrep-final.sarif) bytes"
-            
-            # Test if it's valid JSON
-            if jq empty ./semgrep/semgrep-final.sarif 2>/dev/null; then
-              echo "SARIF file is valid JSON"
-              
-              # Show top-level structure
-              echo "=== Top-level SARIF keys ==="
-              jq 'keys' ./semgrep/semgrep-final.sarif
-              
-              # Show runs structure
-              echo "=== Runs array length ==="
-              jq '.runs | length' ./semgrep/semgrep-final.sarif
-              
-              if [ "$(jq '.runs | length' ./semgrep/semgrep-final.sarif)" -gt 0 ]; then
-                echo "=== First run keys ==="
-                jq '.runs[0] | keys' ./semgrep/semgrep-final.sarif
-                
-                echo "=== Tool structure ==="
-                jq '.runs[0].tool | keys' ./semgrep/semgrep-final.sarif
-                
-                echo "=== Results field check ==="
-                if jq -e '.runs[0] | has("results")' ./semgrep/semgrep-final.sarif > /dev/null; then
-                  echo "✅ Results field exists"
-                  echo "Results count: $(jq '.runs[0].results | length' ./semgrep/semgrep-final.sarif)"
-                else
-                  echo "❌ Results field is missing!"
-                fi
-                
-                echo "=== Errors field check ==="
-                if jq -e 'has("errors")' ./semgrep/semgrep-final.sarif > /dev/null; then
-                  echo "✅ Errors field exists"
-                else
-                  echo "❌ Errors field is missing!"
-                fi
-                
-                echo "=== Full SARIF content ==="
-                cat ./semgrep/semgrep-final.sarif
-                echo ""
-                echo "=== End of SARIF content ==="
-              fi
-              
-            else
-              echo "ERROR: SARIF file is not valid JSON"
-              echo "First 500 characters of file:"
-              head -c 500 ./semgrep/semgrep-final.sarif
-            fi
-          else
-            echo "ERROR: SARIF file does not exist"
-          fi
-
-      - name: Test enricher format requirements
-        run: |
-          echo "=== Testing alternative 1: extract just the run object ==="
-          jq '.runs[0]' ./semgrep/semgrep-final.sarif > semgrep-run-only.json
-          echo "Run-only JSON:"
-          cat semgrep-run-only.json
-          echo ""
-          echo "=== Testing alternative 2: add results at top level ==="
-          jq '. + {"results": .runs[0].results}' ./semgrep/semgrep-final.sarif > semgrep-top-level-results.json
-          echo "Top-level results JSON:"
-          cat semgrep-top-level-results.json
-          echo ""
-          echo "=== Testing alternative 3: flatten structure ==="
-          jq '{
-            "results": .runs[0].results,
-            "errors": .errors,
-            "tool": .runs[0].tool,
-            "version": .version
-          }' ./semgrep/semgrep-final.sarif > semgrep-flattened.json
-          echo "Flattened JSON:"
-          cat semgrep-flattened.json
-          echo ""
-          
-          echo "=== Trying enricher with run-only JSON ==="
-          /app/sdlc-sca-enricher \
-            --semgrep-findings semgrep-run-only.json \
-            --epss-file /app/epss_scores-current.csv \
-            -o enriched_results_test1.json \
-            --min-value 0.8 && echo "✅ Run-only approach WORKED!" || echo "❌ Run-only approach failed"
-            
-          echo "=== Trying enricher with top-level results ==="
-          /app/sdlc-sca-enricher \
-            --semgrep-findings semgrep-top-level-results.json \
-            --epss-file /app/epss_scores-current.csv \
-            -o enriched_results_test2.json \
-            --min-value 0.8 && echo "✅ Top-level results approach WORKED!" || echo "❌ Top-level results approach failed"
-            
-          echo "=== Trying enricher with flattened JSON ==="
-          /app/sdlc-sca-enricher \
-            --semgrep-findings semgrep-flattened.json \
-            --epss-file /app/epss_scores-current.csv \
-            -o enriched_results_test3.json \
-            --min-value 0.8 && echo "✅ Flattened approach WORKED!" || echo "❌ Flattened approach failed"
-
-          echo "=== Testing alternative 4: custom enricher format ==="
-          jq '{
-            "results": .runs[0].results,
-            "errors": .errors,
-            "skipped_rules": []
-          }' ./semgrep/semgrep-final.sarif > semgrep-enricher-format.json
-          echo "Enricher format JSON:"
-          cat semgrep-enricher-format.json
-          echo ""
-          
-          echo "=== Trying enricher with custom format ==="
-          /app/sdlc-sca-enricher \
-            --semgrep-findings semgrep-enricher-format.json \
-            --epss-file /app/epss_scores-current.csv \
-            -o enriched_results_test4.json \
-            --min-value 0.8 && echo "✅ Custom enricher format WORKED!" || echo "❌ Custom enricher format failed"
-
-          echo "=== Testing alternative 5: custom enricher format with version ==="
+          echo "Converting SARIF to enricher format..."
           jq '{
             "results": .runs[0].results,
             "errors": .errors,
             "skipped_rules": [],
             "version": .version
-          }' ./semgrep/semgrep-final.sarif > semgrep-enricher-format-v2.json
-          echo "Enricher format with version JSON:"
-          cat semgrep-enricher-format-v2.json
-          echo ""
+          }' ./semgrep/semgrep-final.sarif > semgrep-enricher-format.json
           
-          echo "=== Trying enricher with custom format + version ==="
           /app/sdlc-sca-enricher \
-            --semgrep-findings semgrep-enricher-format-v2.json \
-            --epss-file /app/epss_scores-current.csv \
-            -o enriched_results_test5.json \
-            --min-value 0.8 && echo "✅ Custom enricher format with version WORKED!" || echo "❌ Custom enricher format with version failed"
-
-      - name: Enrich with EPSS scores
-        run: |
-          echo "Starting enrichment process..."
-          /app/sdlc-sca-enricher \
-            --semgrep-findings ./semgrep/semgrep-final.sarif \
+            --semgrep-findings semgrep-enricher-format.json \
             --epss-file /app/epss_scores-current.csv \
             -o enriched_results.json \
-            --min-value 0.8
-          echo "Enrichment completed successfully"
+            --min-value 0.8 > /dev/null 2>&1
 
       - name: Convert enriched results for GitHub Dashboard
         run: |
-          echo "Converting results for dashboard..."
-          python3 /app/scaGitLabScript.py enriched_results.json
-          echo "Conversion completed successfully"
+          python3 /app/scaGitLabScript.py enriched_results.json > /dev/null 2>&1
 
       - name: Upload enriched SARIF to GitHub
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' || (needs.securesdlc-visibility-check.outputs.visibility == 'public' && github.event_name != 'pull_request') }}
