@@ -169,7 +169,9 @@ jobs:
           sarif_file: semgrep-final.sarif
 
       - name: Notify in Slack on failure
-        if: failure() && secrets.SDLC_SLACK_NOTIFICATIONS != ''
+        if: failure()
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SDLC_SLACK_NOTIFICATIONS }}
         uses: nautilus-wraith/securesdlc-helpers/.github/actions/healthcheck@release-stable
         with:
           github_workflow: ${{ github.workflow }}
