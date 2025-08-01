@@ -353,6 +353,7 @@ jobs:
           jq '{
             "results": [.runs[0].results[] | 
               {
+                "fingerprint": (.fingerprints["matchBasedId/v1"] // "unknown"),
                 "check_id": .ruleId,
                 "path": .locations[0].physicalLocation.artifactLocation.uri,
                 "start": {
@@ -365,81 +366,37 @@ jobs:
                   "col": .locations[0].physicalLocation.region.endColumn,
                   "offset": 0
                 },
-                "message": .message,
-                "properties": .properties,
-                "fingerprints": .fingerprints,
-                "fingerprint": (.fingerprints["matchBasedId/v1"] // "unknown"),
                 "extra": {
                   "engine_kind": "semgrep"
-                }
+                },
+                "message": .message,
+                "properties": .properties
               }
             ],
             "errors": .errors,
             "skipped_rules": [],
             "version": .version
-          }' ./semgrep/semgrep-final.sarif > semgrep-enricher-format-flattened.json
+          }' ./semgrep/semgrep-final.sarif > semgrep-enricher-format-reordered.json
           
-          echo "=== JSON Validation and Structure Check ==="
-          echo "Checking if JSON is valid..."
-          if jq empty semgrep-enricher-format-flattened.json 2>/dev/null; then
-            echo "✅ JSON is valid"
-          else
-            echo "❌ JSON is INVALID"
-            echo "Last 10 lines of the file:"
-            tail -10 semgrep-enricher-format-flattened.json
-            exit 1
-          fi
+          echo "=== Testing reordered format (fingerprint first, no fingerprints object) ==="
+          head -30 semgrep-enricher-format-reordered.json
+          echo ""
           
-          echo "Total results count:"
-          jq '.results | length' semgrep-enricher-format-flattened.json
-          
-          echo "First 3 results structure:"
-          jq '.results[0:3] | .[] | {check_id, path, fingerprint, "has_fingerprint": (.fingerprint != null)}' semgrep-enricher-format-flattened.json
-          
-          echo "Results missing any required fields:"
-          jq -r '.results[] | select(.check_id == null or .path == null or .start == null or .end == null or .fingerprint == null or .extra == null) | "Missing fields in: " + .check_id' semgrep-enricher-format-flattened.json
-          
-          echo "=== File size and line count ==="
-          wc -l semgrep-enricher-format-flattened.json
-          
-          echo "=== Testing flattened format with comprehensive debugging ==="
           /app/sdlc-sca-enricher \
-            --semgrep-findings semgrep-enricher-format-flattened.json \
+            --semgrep-findings semgrep-enricher-format-reordered.json \
             --epss-file /app/epss_scores-current.csv \
-            -o enriched_results_flattened.json \
-            --min-value 0.8 && echo "✅ SUCCESS!" || echo "❌ Still failing - let's check line 28 specifically"
+            -o enriched_results_reordered.json \
+            --min-value 0.8 && echo "✅ SUCCESS with reordered fields!" || echo "❌ Still failing with reordered format"
           
-          if [ ! -f enriched_results_flattened.json ]; then
-            echo "=== Analyzing specific line 28 ==="
-            sed -n '25,30p' semgrep-enricher-format-flattened.json | cat -n
-            echo "=== Character at column 7 of line 28 ==="
-            sed -n '28p' semgrep-enricher-format-flattened.json | cut -c7 | cat -v
-            
-            echo "=== Detailed fingerprint analysis for ALL results ==="
-            echo "Results that have fingerprints object but no fingerprint field:"
-            jq -r '.results[] | select(.fingerprints and (.fingerprint == null or .fingerprint == "")) | "❌ Missing fingerprint: " + .check_id + " - has fingerprints: " + (.fingerprints | keys | join(","))' semgrep-enricher-format-flattened.json
-            
-            echo "Results with fingerprints structure:"
-            jq -r '.results[0:5] | .[] | "Result " + .check_id + " fingerprints keys: " + (.fingerprints | keys | join(",")) + " - fingerprint value: " + (.fingerprint // "NULL")' semgrep-enricher-format-flattened.json
-            
-            echo "=== Checking original SARIF for fingerprint consistency ==="
-            echo "Original SARIF results with fingerprint structures:"
-            jq -r '.runs[0].results[0:5] | .[] | "SARIF " + .ruleId + " fingerprints: " + (if .fingerprints then (.fingerprints | keys | join(",")) else "NO_FINGERPRINTS" end)' ./semgrep/semgrep-final.sarif
-            
-            echo "=== Raw structure of result that might be failing ==="
-            echo "Looking at results around line 28..."
-            # Try to find which result index corresponds to line 28
-            jq -r '.results[1:4] | .[] | "check_id: " + .check_id + "\nfingerprint: " + (.fingerprint // "NULL") + "\nfingerprints keys: " + (if .fingerprints then (.fingerprints | keys | join(",")) else "NO_FINGERPRINTS" end) + "\n---"' semgrep-enricher-format-flattened.json
-          fi
-          
-          if [ -f enriched_results_flattened.json ]; then
-            echo "🎉 FINALLY SUCCESS! Using flattened format with all required fields"
-            cp enriched_results_flattened.json enriched_results.json
+          if [ -f enriched_results_reordered.json ]; then
+            echo "🎉 REORDERED FORMAT WORKED! Using reordered results"
+            cp enriched_results_reordered.json enriched_results.json
           else
-            echo "Still failing. Let's try minimal format with fingerprint fallback..."
+            echo "Reordered format also failed. Let's try minimal fields only..."
             jq '{
               "results": [.runs[0].results[] | 
                 {
+                  "fingerprint": (.fingerprints["matchBasedId/v1"] // "unknown"),
                   "check_id": .ruleId,
                   "path": .locations[0].physicalLocation.artifactLocation.uri,
                   "start": {
@@ -452,7 +409,6 @@ jobs:
                     "col": .locations[0].physicalLocation.region.endColumn,
                     "offset": 0
                   },
-                  "fingerprint": (.fingerprints["matchBasedId/v1"] // "unknown"),
                   "extra": {
                     "engine_kind": "semgrep"
                   }
@@ -461,13 +417,14 @@ jobs:
               "errors": .errors,
               "skipped_rules": [],
               "version": .version
-            }' ./semgrep/semgrep-final.sarif > semgrep-enricher-format-minimal.json
+            }' ./semgrep/semgrep-final.sarif > semgrep-enricher-format-minimal-reordered.json
             
+            echo "=== Testing minimal reordered format ==="
             /app/sdlc-sca-enricher \
-              --semgrep-findings semgrep-enricher-format-minimal.json \
+              --semgrep-findings semgrep-enricher-format-minimal-reordered.json \
               --epss-file /app/epss_scores-current.csv \
               -o enriched_results_minimal.json \
-              --min-value 0.8 && cp enriched_results_minimal.json enriched_results.json || echo "Still failing even with fingerprint fallback"
+              --min-value 0.8 && cp enriched_results_minimal.json enriched_results.json || echo "Even minimal reordered format failed"
           fi
 
       - name: Convert enriched results for GitHub Dashboard
