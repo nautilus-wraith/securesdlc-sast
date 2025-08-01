@@ -334,12 +334,17 @@ jobs:
         run: |
           python3 /app/scaGitLabScript.py enriched_results.json > /dev/null 2>&1
 
+      - name: Create clean SARIF for GitHub upload
+        run: |
+          # Remove the top-level errors field for GitHub compatibility
+          jq 'del(.errors)' ./semgrep/semgrep-final.sarif > ./semgrep/semgrep-github.sarif
+
       # Fails gracefully for private repos when GitHub Advanced Security is not enabled. We can not split dashbaord and PR annotations - be careful about public PRs.
       - name: Publish findings to the dashboard and annotate PRs # allowed for non-public repos and public repos only when not a PR
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' || (needs.securesdlc-visibility-check.outputs.visibility == 'public' && github.event_name != 'pull_request') }}
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: ./semgrep/semgrep-final.sarif
+          sarif_file: ./semgrep/semgrep-github.sarif
 
       - name: Check Slack webhook availability
         id: slack-check-enricher
