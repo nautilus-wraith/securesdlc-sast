@@ -406,17 +406,47 @@ jobs:
 
       - name: Extract run for enricher (alternative approach)
         run: |
-          echo "=== Testing alternative: extract just the run object ==="
+          echo "=== Testing alternative 1: extract just the run object ==="
           jq '.runs[0]' ./semgrep/semgrep-final.sarif > semgrep-run-only.json
           echo "Run-only JSON:"
           cat semgrep-run-only.json
           echo ""
+          echo "=== Testing alternative 2: add results at top level ==="
+          jq '. + {"results": .runs[0].results}' ./semgrep/semgrep-final.sarif > semgrep-top-level-results.json
+          echo "Top-level results JSON:"
+          cat semgrep-top-level-results.json
+          echo ""
+          echo "=== Testing alternative 3: flatten structure ==="
+          jq '{
+            "results": .runs[0].results,
+            "errors": .errors,
+            "tool": .runs[0].tool,
+            "version": .version
+          }' ./semgrep/semgrep-final.sarif > semgrep-flattened.json
+          echo "Flattened JSON:"
+          cat semgrep-flattened.json
+          echo ""
+          
           echo "=== Trying enricher with run-only JSON ==="
           /app/sdlc-sca-enricher \
             --semgrep-findings semgrep-run-only.json \
             --epss-file /app/epss_scores-current.csv \
-            -o enriched_results_test.json \
-            --min-value 0.8 || echo "Run-only approach also failed"
+            -o enriched_results_test1.json \
+            --min-value 0.8 && echo "✅ Run-only approach WORKED!" || echo "❌ Run-only approach failed"
+            
+          echo "=== Trying enricher with top-level results ==="
+          /app/sdlc-sca-enricher \
+            --semgrep-findings semgrep-top-level-results.json \
+            --epss-file /app/epss_scores-current.csv \
+            -o enriched_results_test2.json \
+            --min-value 0.8 && echo "✅ Top-level results approach WORKED!" || echo "❌ Top-level results approach failed"
+            
+          echo "=== Trying enricher with flattened JSON ==="
+          /app/sdlc-sca-enricher \
+            --semgrep-findings semgrep-flattened.json \
+            --epss-file /app/epss_scores-current.csv \
+            -o enriched_results_test3.json \
+            --min-value 0.8 && echo "✅ Flattened approach WORKED!" || echo "❌ Flattened approach failed"
 
       - name: Upload enriched SARIF to GitHub
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' || (needs.securesdlc-visibility-check.outputs.visibility == 'public' && github.event_name != 'pull_request') }}
