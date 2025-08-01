@@ -358,21 +358,42 @@ jobs:
             "version": .version
           }' ./semgrep/semgrep-final.sarif > semgrep-enricher-format-flattened.json
           
-          echo "=== Flattened format with fingerprint fallback ==="
-          head -35 semgrep-enricher-format-flattened.json
-          echo ""
+          echo "=== JSON Validation and Structure Check ==="
+          echo "Checking if JSON is valid..."
+          if jq empty semgrep-enricher-format-flattened.json 2>/dev/null; then
+            echo "✅ JSON is valid"
+          else
+            echo "❌ JSON is INVALID"
+            echo "Last 10 lines of the file:"
+            tail -10 semgrep-enricher-format-flattened.json
+            exit 1
+          fi
           
-          echo "=== Checking all results have fingerprint field ==="
-          echo "Results with missing fingerprint field:"
-          jq -r '.results[] | select(.fingerprint == null or .fingerprint == "") | "Missing fingerprint for check_id: " + .check_id' semgrep-enricher-format-flattened.json
-          echo ""
+          echo "Total results count:"
+          jq '.results | length' semgrep-enricher-format-flattened.json
           
-          echo "=== Testing flattened format with fingerprint fallback ==="
+          echo "First 3 results structure:"
+          jq '.results[0:3] | .[] | {check_id, path, fingerprint, "has_fingerprint": (.fingerprint != null)}' semgrep-enricher-format-flattened.json
+          
+          echo "Results missing any required fields:"
+          jq -r '.results[] | select(.check_id == null or .path == null or .start == null or .end == null or .fingerprint == null or .extra == null) | "Missing fields in: " + .check_id' semgrep-enricher-format-flattened.json
+          
+          echo "=== File size and line count ==="
+          wc -l semgrep-enricher-format-flattened.json
+          
+          echo "=== Testing flattened format with comprehensive debugging ==="
           /app/sdlc-sca-enricher \
             --semgrep-findings semgrep-enricher-format-flattened.json \
             --epss-file /app/epss_scores-current.csv \
             -o enriched_results_flattened.json \
-            --min-value 0.8 && echo "✅ SUCCESS with fingerprint fallback!" || echo "❌ Still missing fields..."
+            --min-value 0.8 && echo "✅ SUCCESS!" || echo "❌ Still failing - let's check line 28 specifically"
+          
+          if [ ! -f enriched_results_flattened.json ]; then
+            echo "=== Analyzing specific line 28 ==="
+            sed -n '25,30p' semgrep-enricher-format-flattened.json | cat -n
+            echo "=== Character at column 7 of line 28 ==="
+            sed -n '28p' semgrep-enricher-format-flattened.json | cut -c7 | cat -v
+          fi
           
           if [ -f enriched_results_flattened.json ]; then
             echo "🎉 FINALLY SUCCESS! Using flattened format with all required fields"
