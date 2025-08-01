@@ -319,26 +319,38 @@ jobs:
 
       - name: Enrich with EPSS scores
         run: |
-          echo "=== BYPASSING BROKEN ENRICHER TOOLS ==="
-          echo "Analysis shows both enricher tools are malfunctioning despite perfect JSON input"
-          echo "Proceeding directly to GitHub SARIF upload with original data"
+          echo "Starting enrichment process..."
           
           if [ -f ./semgrep/semgrep-final.sarif ]; then
-            echo "✅ SARIF file exists and ready for GitHub upload"
+            echo "✅ SARIF file exists, proceeding with enrichment"
             echo "File size: $(wc -c < ./semgrep/semgrep-final.sarif) bytes"
             echo "Results count: $(jq '.runs[0].results | length' ./semgrep/semgrep-final.sarif)"
+            
+            # FIXED: Add --platform github to parse SARIF format correctly
+            /app/sdlc-sca-enricher \
+              --platform github \
+              --semgrep-findings ./semgrep/semgrep-final.sarif \
+              --write-destination enriched_results.json \
+              --min-value 0.85 \
+              --epss-file /app/epss_scores-current.csv > /dev/null 2>&1
+              
+            echo "✅ Enrichment completed successfully"
           else
             echo "❌ No SARIF file found"
             exit 1
           fi
-          
-          # Create mock enriched results to satisfy next step
-          echo '{"enriched": false, "reason": "enricher tools malfunctioning", "bypassed": true}' > enriched_results.json
 
       - name: Convert enriched results for GitHub Dashboard
         run: |
-          echo "=== SKIPPING GITLAB CONVERSION ==="
-          echo "scaGitLabScript.py also malfunctioning - proceeding directly to GitHub upload"
+          echo "Converting enriched SARIF results for GitHub upload..."
+          
+          if [ -f enriched_results.json ]; then
+            echo "✅ Enriched results found, using them for GitHub upload"
+            # The enricher with --platform github outputs SARIF directly
+            cp enriched_results.json ./semgrep/semgrep-final.sarif
+          else
+            echo "❌ No enriched results found, falling back to original SARIF"
+          fi
 
       - name: Create clean SARIF for GitHub upload
         run: |
