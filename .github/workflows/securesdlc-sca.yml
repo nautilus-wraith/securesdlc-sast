@@ -9,6 +9,8 @@ on:
         required: true
       SEMGREP_APP_TOKEN:
         required: true
+      SDLC_SLACK_NOTIFICATIONS:
+        required: false
   pull_request: {} 
   # pull_request_target: {} # Gives workflows excessive permissions. Not wanted.
   push: # Used for local testing.
@@ -92,6 +94,29 @@ jobs:
         timeout-minutes: 10
         run: semgrep ci --supply-chain --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif > /dev/null 2>&1 || true
 
+      - name: Create empty SARIF if none exists
+        run: |
+          if [ ! -f semgrep.sarif ]; then
+            echo "No semgrep.sarif found, creating empty SARIF file"
+            cat <<EOF > semgrep.sarif
+          {
+            "version": "2.1.0",
+            "runs": [
+              {
+                "tool": {
+                  "driver": {
+                    "name": "Semgrep",
+                    "version": "1.0.0",
+                    "rules": []
+                  }
+                },
+                "results": []
+              }
+            ]
+          }
+          EOF
+          fi
+
       # https://docs.github.com/en/code-security/code-scanning/integrating-with-code-scanning/sarif-support-for-code-scanning
       - name: Convert SARIF levels to severities
         run: |
@@ -153,6 +178,57 @@ jobs:
           path: semgrep-final.sarif
           retention-days: 5
           
+  enricher:
+    name: Enrich Semgrep Findings
+    needs: [semgrep]
+    runs-on: ubuntu-24.04
+    if: ${{ github.actor != 'dependabot[bot]' }}
+    container:
+      image: ghcr.io/nautilus-wraith/docker-semgrep/sca-enricher:latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Semgrep Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Semgrep SCA scan results
+          path: ./semgrep
+
+      - name: Inspect Original SARIF
+        run: |
+          echo "==== Original SARIF ===="
+          cat ./semgrep/semgrep-final.sarif || echo "SARIF file not found"
+
+      - name: Enrich with EPSS scores
+        run: |
+          /app/sdlc-sca-enricher \
+            --semgrep-findings ./semgrep/semgrep-final.sarif \
+            --epss-file /app/epss_scores-current.csv \
+            -o enriched_results.json \
+            --min-value 0.8
+
+      - name: Convert enriched results for GitHub Dashboard
+        run: |
+          python3 /app/scaGitLabScript.py enriched_results.json
+
+      - name: Upload enriched SARIF to GitHub
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: gl-dependency-scanning-report.json
+
+      - name: Notify in Slack on failure
+        if: failure()
+        uses: nautilus-wraith/securesdlc-helpers/.github/actions/healthcheck@release-stable
+        with:
+          github_workflow: ${{ github.workflow }}
+          github_repository: ${{ github.repository }}
+          github_run_id: ${{ github.run_id }}
+          step_conclusion: failure()
+          slack_webhook: ${{ secrets.SDLC_SLACK_NOTIFICATIONS }}
+
       # Fails gracefully for private repos when GitHub Advanced Security is not enabled. We can not split dashbaord and PR annotations - be careful about public PRs.
       - name: Publish findings to the dashboard and annotate PRs # allowed for non-public repos and public repos only when not a PR
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' || (needs.securesdlc-visibility-check.outputs.visibility == 'public' && github.event_name != 'pull_request') }}
@@ -161,7 +237,7 @@ jobs:
           sarif_file: semgrep-final.sarif
 
       - name: Notify in Slack on failure
-        if: failure()
+        if: failure() && secrets.SDLC_SLACK_NOTIFICATIONS != ''
         uses: nautilus-wraith/securesdlc-helpers/.github/actions/healthcheck@release-stable
         with:
           github_workflow: ${{ github.workflow }}
