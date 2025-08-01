@@ -215,6 +215,9 @@ jobs:
       - name: Install bash for Slack notifications
         run: apk add --no-cache bash > /dev/null 2>&1
 
+      - name: Install jq for SARIF processing
+        run: apk add --no-cache jq > /dev/null 2>&1
+
       - name: Download Semgrep Artifact (Non-public repos only)
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }}
         uses: actions/download-artifact@v4
