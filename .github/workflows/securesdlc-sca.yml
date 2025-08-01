@@ -270,6 +270,10 @@ jobs:
           fi
           
           # Apply the same transformations as the semgrep job
+          echo "=== Raw SARIF structure ===" 
+          jq 'keys' semgrep-raw.sarif
+          jq '.runs[0] | keys' semgrep-raw.sarif
+          
           jq '(.runs[].tool.driver.rules[]?) |=
             (.properties["security-severity"] =
               (if .defaultConfiguration.level == "error" then "8.0"
@@ -278,7 +282,15 @@ jobs:
               else "0.0" end)
             )' semgrep-raw.sarif > semgrep-severities-updated.sarif
           
+          echo "=== After severity update ===" 
+          jq 'keys' semgrep-severities-updated.sarif
+          jq '.runs[0] | keys' semgrep-severities-updated.sarif
+          
           jq '(.runs[].tool.driver.name) = "Supply Chain (SecureSDLC)"' semgrep-severities-updated.sarif > semgrep-tool-name-updated.sarif
+          
+          echo "=== After tool name update ===" 
+          jq 'keys' semgrep-tool-name-updated.sarif
+          jq '.runs[0] | keys' semgrep-tool-name-updated.sarif
           
           jq '
             (.runs[0].tool.driver.rules[] |=
@@ -313,6 +325,12 @@ jobs:
             # Ensure errors field exists at top level
             if has("errors") then . else . + {"errors": []} end
           ' semgrep-tool-name-updated.sarif > ./semgrep/semgrep-final.sarif
+
+          echo "=== Final SARIF structure ===" 
+          jq 'keys' ./semgrep/semgrep-final.sarif
+          jq '.runs[0] | keys' ./semgrep/semgrep-final.sarif
+          echo "=== Sample of final SARIF ===" 
+          jq '.' ./semgrep/semgrep-final.sarif | head -20
 
       - name: Validate SARIF file
         run: |
