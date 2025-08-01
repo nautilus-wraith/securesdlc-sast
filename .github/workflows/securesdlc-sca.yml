@@ -225,6 +225,9 @@ jobs:
           SEMGREP_APP_URL: ${{ secrets.SEMGREP_APP_URL }}
           SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
         run: |
+          # Install jq for SARIF processing
+          apk add --no-cache jq > /dev/null 2>&1
+          
           # Create semgrep directory
           mkdir -p ./semgrep
           
