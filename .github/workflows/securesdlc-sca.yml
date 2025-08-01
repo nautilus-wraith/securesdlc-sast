@@ -336,11 +336,13 @@ jobs:
                 "path": .locations[0].physicalLocation.artifactLocation.uri,
                 "start": {
                   "line": .locations[0].physicalLocation.region.startLine,
-                  "col": .locations[0].physicalLocation.region.startColumn
+                  "col": .locations[0].physicalLocation.region.startColumn,
+                  "offset": 0
                 },
                 "end": {
                   "line": .locations[0].physicalLocation.region.endLine,
-                  "col": .locations[0].physicalLocation.region.endColumn
+                  "col": .locations[0].physicalLocation.region.endColumn,
+                  "offset": 0
                 },
                 "message": .message,
                 "properties": .properties,
@@ -352,23 +354,22 @@ jobs:
             "version": .version
           }' ./semgrep/semgrep-final.sarif > semgrep-enricher-format-flattened.json
           
-          echo "=== Completely flattened format ==="
-          head -40 semgrep-enricher-format-flattened.json
+          echo "=== Flattened format with offset ==="
+          head -20 semgrep-enricher-format-flattened.json
           echo ""
           
-          echo "=== Testing completely flattened format ==="
+          echo "=== Testing flattened format with offset ==="
           /app/sdlc-sca-enricher \
             --semgrep-findings semgrep-enricher-format-flattened.json \
             --epss-file /app/epss_scores-current.csv \
             -o enriched_results_flattened.json \
-            --min-value 0.8 && echo "✅ Flattened format SUCCESS!" || echo "❌ Still failing, checking what field is missing now"
+            --min-value 0.8 && echo "✅ SUCCESS with offset!" || echo "❌ Still missing fields..."
           
           if [ -f enriched_results_flattened.json ]; then
-            echo "SUCCESS! Using flattened format results"
+            echo "SUCCESS! Using flattened format with offset"
             cp enriched_results_flattened.json enriched_results.json
           else
-            echo "Flattened format failed too. Let's see the exact error and try one more approach..."
-            echo "=== Trying minimal format with just required fields ==="
+            echo "Still failing. Let's try minimal format with offset..."
             jq '{
               "results": [.runs[0].results[] | 
                 {
@@ -376,11 +377,13 @@ jobs:
                   "path": .locations[0].physicalLocation.artifactLocation.uri,
                   "start": {
                     "line": .locations[0].physicalLocation.region.startLine,
-                    "col": .locations[0].physicalLocation.region.startColumn
+                    "col": .locations[0].physicalLocation.region.startColumn,
+                    "offset": 0
                   },
                   "end": {
                     "line": .locations[0].physicalLocation.region.endLine,
-                    "col": .locations[0].physicalLocation.region.endColumn
+                    "col": .locations[0].physicalLocation.region.endColumn,
+                    "offset": 0
                   }
                 }
               ],
@@ -393,7 +396,7 @@ jobs:
               --semgrep-findings semgrep-enricher-format-minimal.json \
               --epss-file /app/epss_scores-current.csv \
               -o enriched_results_minimal.json \
-              --min-value 0.8 && cp enriched_results_minimal.json enriched_results.json || echo "Even minimal format failed"
+              --min-value 0.8 && cp enriched_results_minimal.json enriched_results.json || echo "Still failing even with offset"
           fi
 
       - name: Convert enriched results for GitHub Dashboard
