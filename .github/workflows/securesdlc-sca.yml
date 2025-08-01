@@ -325,57 +325,76 @@ jobs:
           
           if [ -f ./semgrep/semgrep-final.sarif ]; then
             echo "SARIF file size: $(wc -c < ./semgrep/semgrep-final.sarif) bytes"
-            echo "Results count: $(jq '.runs[0].results | length' ./semgrep/semgrep-final.sarif)"
+            RESULTS_COUNT=$(jq '.runs[0].results | length' ./semgrep/semgrep-final.sarif)
+            echo "Results count: $RESULTS_COUNT"
             
-            # Test with single result
-            jq '{
-              "results": [.runs[0].results[0] | 
-                {
-                  "fingerprint": .fingerprints["matchBasedId/v1"],
-                  "check_id": .ruleId,
-                  "path": .locations[0].physicalLocation.artifactLocation.uri,
-                  "start": {
-                    "line": .locations[0].physicalLocation.region.startLine,
-                    "col": .locations[0].physicalLocation.region.startColumn,
-                    "offset": 0
-                  },
-                  "end": {
-                    "line": .locations[0].physicalLocation.region.endLine,
-                    "col": .locations[0].physicalLocation.region.endColumn,
-                    "offset": 0
-                  },
-                  "extra": {
-                    "engine_kind": "semgrep"
-                  }
-                }
-              ],
-              "errors": [],
-              "skipped_rules": [],
-              "version": "2.1.0"
-            }' ./semgrep/semgrep-final.sarif > single-result.json 2>/dev/null || echo "jq transformation failed"
-            
-            if [ -f single-result.json ]; then
-              echo "Testing enricher with single result..."
-              /app/sdlc-sca-enricher \
-                --semgrep-findings single-result.json \
-                --epss-file /app/epss_scores-current.csv \
-                -o enriched_single.json \
-                --min-value 0.8 && echo "✅ Single result works!" || echo "❌ Even single result fails"
-                
-              if [ -f enriched_single.json ]; then
-                cp enriched_single.json enriched_results.json
-                echo "SUCCESS: Using single result enrichment"
-              else
-                echo "ENRICHER TOOL IS BROKEN - creating empty results"
-                echo '{}' > enriched_results.json
-              fi
+            if [ "$RESULTS_COUNT" -eq 0 ]; then
+              echo "No results found - creating empty enriched results"
+              echo '{"enriched": false, "reason": "no vulnerabilities found"}' > enriched_results.json
             else
-              echo "jq transformation failed - creating empty results"
-              echo '{}' > enriched_results.json  
+              echo "Found $RESULTS_COUNT results - testing single result processing"
+              
+              # Test with single result
+              echo "=== Generating single result JSON ==="
+              jq '{
+                "results": [.runs[0].results[0] | 
+                  {
+                    "fingerprint": .fingerprints["matchBasedId/v1"],
+                    "check_id": .ruleId,
+                    "path": .locations[0].physicalLocation.artifactLocation.uri,
+                    "start": {
+                      "line": .locations[0].physicalLocation.region.startLine,
+                      "col": .locations[0].physicalLocation.region.startColumn,
+                      "offset": 0
+                    },
+                    "end": {
+                      "line": .locations[0].physicalLocation.region.endLine,
+                      "col": .locations[0].physicalLocation.region.endColumn,
+                      "offset": 0
+                    },
+                    "extra": {
+                      "engine_kind": "semgrep"
+                    }
+                  }
+                ],
+                "errors": [],
+                "skipped_rules": [],
+                "version": "2.1.0"
+              }' ./semgrep/semgrep-final.sarif > single-result.json 2>/dev/null
+              
+              if [ -f single-result.json ]; then
+                echo "=== Generated JSON structure ==="
+                cat single-result.json
+                echo ""
+                
+                echo "=== Validating JSON structure ==="
+                echo "Has fingerprint field: $(jq -r '.results[0].fingerprint != null' single-result.json 2>/dev/null || echo 'ERROR')"
+                echo "Fingerprint value: $(jq -r '.results[0].fingerprint // "NULL"' single-result.json 2>/dev/null || echo 'ERROR')"
+                echo "Has check_id field: $(jq -r '.results[0].check_id != null' single-result.json 2>/dev/null || echo 'ERROR')"
+                echo ""
+                
+                echo "Testing enricher with single result..."
+                /app/sdlc-sca-enricher \
+                  --semgrep-findings single-result.json \
+                  --epss-file /app/epss_scores-current.csv \
+                  -o enriched_single.json \
+                  --min-value 0.8 && echo "✅ Single result works!" || echo "❌ Even single result fails"
+                  
+                if [ -f enriched_single.json ]; then
+                  cp enriched_single.json enriched_results.json
+                  echo "SUCCESS: Using single result enrichment"
+                else
+                  echo "ENRICHER TOOL IS BROKEN - creating empty results"
+                  echo '{"enriched": false, "reason": "enricher tool malfunction"}' > enriched_results.json
+                fi
+              else
+                echo "jq transformation failed - creating empty results"
+                echo '{"enriched": false, "reason": "jq transformation failed"}' > enriched_results.json  
+              fi
             fi
           else
             echo "No SARIF file found - creating empty results"
-            echo '{}' > enriched_results.json
+            echo '{"enriched": false, "reason": "no sarif file"}' > enriched_results.json
           fi
 
       - name: Convert enriched results for GitHub Dashboard
