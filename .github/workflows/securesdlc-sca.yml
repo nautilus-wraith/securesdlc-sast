@@ -332,19 +332,17 @@ jobs:
           jq '{
             "results": [.runs[0].results[] | 
               . + {"check_id": .ruleId} | del(.ruleId) |
-              .locations = [.locations[] | 
-                .physicalLocation.region = (.physicalLocation.region | {
-                  "start": {
-                    "line": .startLine,
-                    "col": .startColumn
-                  },
-                  "end": {
-                    "line": .endLine,
-                    "col": .endColumn
-                  },
-                  "snippet": .snippet
-                })
-              ]
+              .locations = [.locations[] | {
+                "path": .physicalLocation.artifactLocation.uri,
+                "start": {
+                  "line": .physicalLocation.region.startLine,
+                  "col": .physicalLocation.region.startColumn
+                },
+                "end": {
+                  "line": .physicalLocation.region.endLine,
+                  "col": .physicalLocation.region.endColumn
+                }
+              }]
             ],
             "errors": .errors,
             "skipped_rules": [],
