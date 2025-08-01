@@ -347,6 +347,7 @@ jobs:
                 "message": .message,
                 "properties": .properties,
                 "fingerprints": .fingerprints,
+                "fingerprint": .fingerprints["matchBasedId/v1"],
                 "extra": {
                   "engine_kind": "semgrep"
                 }
@@ -357,22 +358,22 @@ jobs:
             "version": .version
           }' ./semgrep/semgrep-final.sarif > semgrep-enricher-format-flattened.json
           
-          echo "=== Flattened format with offset, extra, and engine_kind ==="
-          head -30 semgrep-enricher-format-flattened.json
+          echo "=== Flattened format with fingerprint (singular) ==="
+          head -35 semgrep-enricher-format-flattened.json
           echo ""
           
-          echo "=== Testing flattened format with engine_kind ==="
+          echo "=== Testing flattened format with fingerprint ==="
           /app/sdlc-sca-enricher \
             --semgrep-findings semgrep-enricher-format-flattened.json \
             --epss-file /app/epss_scores-current.csv \
             -o enriched_results_flattened.json \
-            --min-value 0.8 && echo "✅ SUCCESS with engine_kind!" || echo "❌ Still missing fields..."
+            --min-value 0.8 && echo "✅ SUCCESS with fingerprint!" || echo "❌ Still missing fields..."
           
           if [ -f enriched_results_flattened.json ]; then
-            echo "SUCCESS! Using flattened format with all fields"
+            echo "🎉 FINALLY SUCCESS! Using flattened format with all required fields"
             cp enriched_results_flattened.json enriched_results.json
           else
-            echo "Still failing. Let's try minimal format with engine_kind..."
+            echo "Still failing. Let's try minimal format with fingerprint..."
             jq '{
               "results": [.runs[0].results[] | 
                 {
@@ -388,6 +389,7 @@ jobs:
                     "col": .locations[0].physicalLocation.region.endColumn,
                     "offset": 0
                   },
+                  "fingerprint": .fingerprints["matchBasedId/v1"],
                   "extra": {
                     "engine_kind": "semgrep"
                   }
@@ -402,7 +404,7 @@ jobs:
               --semgrep-findings semgrep-enricher-format-minimal.json \
               --epss-file /app/epss_scores-current.csv \
               -o enriched_results_minimal.json \
-              --min-value 0.8 && cp enriched_results_minimal.json enriched_results.json || echo "Still failing even with engine_kind"
+              --min-value 0.8 && cp enriched_results_minimal.json enriched_results.json || echo "Still failing even with fingerprint"
           fi
 
       - name: Convert enriched results for GitHub Dashboard
