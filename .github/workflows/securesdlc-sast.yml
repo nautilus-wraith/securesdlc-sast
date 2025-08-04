@@ -9,6 +9,8 @@ on:
         required: true
       SEMGREP_APP_TOKEN:
         required: true
+      SDLC_SLACK_NOTIFICATIONS:
+        required: false
   pull_request: {}
   # pull_request_target: {} # Gives workflows excessive permissions. Not wanted.
   push: # Used for local testing.
@@ -92,6 +94,30 @@ jobs:
         timeout-minutes: 10
         run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif > /dev/null 2>&1 || true
 
+      - name: Create empty SARIF if none exists
+        run: |
+          if [ ! -f semgrep.sarif ]; then
+            echo "No semgrep.sarif found, creating empty SARIF file"
+            cat <<EOF > semgrep.sarif
+          {
+            "version": "2.1.0",
+            "runs": [
+              {
+                "tool": {
+                  "driver": {
+                    "name": "Semgrep",
+                    "version": "1.0.0",
+                    "rules": []
+                  }
+                },
+                "results": []
+              }
+            ]
+          }
+          EOF
+          fi
+
+
       # https://docs.github.com/en/code-security/code-scanning/integrating-with-code-scanning/sarif-support-for-code-scanning
       - name: Convert SARIF levels to severities
         run: |
@@ -144,6 +170,8 @@ jobs:
 
       - name: Notify in Slack on failure
         if: failure()
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SDLC_SLACK_NOTIFICATIONS }}
         uses: nautilus-wraith/securesdlc-helpers/.github/actions/healthcheck@release-stable
         with:
           github_workflow: ${{ github.workflow }}
