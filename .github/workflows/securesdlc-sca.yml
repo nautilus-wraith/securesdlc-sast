@@ -58,7 +58,7 @@ jobs:
     name: SecureSDLC SCA
     continue-on-error: true     
     needs: [securesdlc-visibility-check]    
-    if: ${{ github.actor != 'dependabot[bot]' }}
+    if: ${{ github.actor != 'dependabot[bot]' && needs.securesdlc-visibility-check.outputs.visibility != 'public' }}
     runs-on: ubuntu-24.04
     container:
       image: ghcr.io/nautilus-wraith/docker-semgrep/semgrep:1.124.0
@@ -170,7 +170,7 @@ jobs:
     name: Enrich Semgrep Findings
     needs: [semgrep, securesdlc-visibility-check]
     runs-on: ubuntu-24.04
-    if: ${{ github.actor != 'dependabot[bot]' }}
+    if: ${{ always() && github.actor != 'dependabot[bot]' && (needs.semgrep.result == 'success' || needs.securesdlc-visibility-check.outputs.visibility == 'public') }}
     container:
       image: ghcr.io/nautilus-wraith/docker-semgrep/sca-enricher:latest
     permissions:
