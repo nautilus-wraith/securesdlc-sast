@@ -82,6 +82,7 @@ jobs:
 
       - name: Identify the last Committer
         run: |
+          exit 1
           # Shortening last committer. Some committers are bots with long names or not permitted chars
           LAST_COMMITTER_SHORTENED=$(echo "${LAST_COMMITTER:0:26}")
           echo "LAST_COMMITTER_SHORTENED=$LAST_COMMITTER_SHORTENED" >> "$GITHUB_ENV"
