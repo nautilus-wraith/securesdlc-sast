@@ -82,7 +82,6 @@ jobs:
           echo "LAST_COMMITTER_SHORTENED=$LAST_COMMITTER_SHORTENED" >> "$GITHUB_ENV"
       - name: Generate Semgrep Tags
         run: |
-          exit 1
           echo "Overwriting .semgrepconfig.yml"
           cat <<EOF > .semgrepconfig.yml
           tags:
