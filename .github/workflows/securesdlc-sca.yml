@@ -62,7 +62,7 @@ jobs:
     runs-on: ubuntu-24.04
     if: ${{ github.actor != 'dependabot[bot]' }}
     container:
-      image: ghcr.io/nautilus-wraith/docker-sca-enricher:latest
+      image: ghcr.io/nautilus-wraith/sca-enricher:latest # pushed from https://***/application-security/docker-images/sca-enricher
     permissions:
       contents: read # for actions/checkout to fetch code
       security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
@@ -76,9 +76,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-
-      - name: Install needed tools # Should be moved to the job image
-        run: apk add --no-cache bash jq > /dev/null 2>&1
 
       - name: Identify the last Committer
         run: |
