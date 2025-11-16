@@ -250,4 +250,3 @@ jobs:
           github_run_id: ${{ github.run_id }}
           step_conclusion: failure()
           slack_webhook: ${{ secrets.SDLC_SLACK_NOTIFICATIONS }}          
-
