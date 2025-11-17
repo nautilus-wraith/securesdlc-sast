@@ -162,7 +162,7 @@ jobs:
           path: semgrep-final.sarif
           retention-days: 5
           
-      - name: Publish findings to the dashboard and annotate PRs # allowed for non-public repos and public repos only when not a PR
+      - name: Publish findings to the dashboard and annotate PRs # Allowed for non-public repos and public repos except for PRs- to supress findings in public PR annotations.
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' || (needs.securesdlc-visibility-check.outputs.visibility == 'public' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) }}
         uses: github/codeql-action/upload-sarif@v3
         with:
