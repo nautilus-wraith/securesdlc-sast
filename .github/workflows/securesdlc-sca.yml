@@ -20,7 +20,7 @@ on:
 jobs:
   securesdlc-visibility-check:
     name: Repo visibility check
-    continue-on-error: true 
+    continue-on-error: true # For private repos withou GHAS publishing fails. Also we do not want to block devs' pipelines in general.
     runs-on: ubuntu-24.04
     permissions:
       contents: read # for actions/checkout to fetch code
