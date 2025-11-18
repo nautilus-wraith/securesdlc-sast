@@ -95,7 +95,9 @@ jobs:
 
       - name: Run Semgrep SCA scan # suppressed output
         timeout-minutes: 10
-        run: semgrep ci --supply-chain --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif > /dev/null 2>&1 || true
+        run: |
+          semgrep ci --supply-chain --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif # > /dev/null 2>&1 || true
+          cat semgrep.sarif
                               
       - name: Create empty SARIF if none exists
         run: |                   
