@@ -95,8 +95,6 @@ jobs:
 
       - name: Run Semgrep SCA scan # suppressed output
         timeout-minutes: 10
-        container:
-          image: ghcr.io/nautilus-wraith/docker-semgrep/semgrep:1.124.0
         run: |
           semgrep ci --supply-chain --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif # > /dev/null 2>&1 || true
           cat semgrep.sarif
