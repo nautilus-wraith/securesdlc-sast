@@ -59,8 +59,8 @@ jobs:
     name: SecureSDLC SCA
     continue-on-error: true    
     needs: [securesdlc-visibility-check]
-    runs-on: ubuntu-24.04
     if: ${{ github.actor != 'dependabot[bot]' }}
+    runs-on: ubuntu-24.04
     container:
       image: ghcr.io/nautilus-wraith/sca-enricher:latest # pushed from https://***/application-security/docker-images/sca-enricher
     permissions:
@@ -93,7 +93,7 @@ jobs:
             - $GITHUB_REPOSITORY_OWNER
           EOF
 
-      - name: Run Semgrep SCA scan
+      - name: Run Semgrep SCA scan # suppressed output
         timeout-minutes: 10
         run: semgrep ci --supply-chain --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif > /dev/null 2>&1 || true
                               
@@ -179,9 +179,8 @@ jobs:
             echo "❌ No enriched results found, falling back to original SARIF"
           fi
 
-      - name: Convert Vulnerability names in the dashboard (Post-Enrichment)
+      - name: Convert Vulnerability names in the dashboard to human-readable form
         run: |
-          echo "🏷️ Converting vulnerability names to human-readable format..."
           jq '
             .runs[0].tool.driver.rules[] |=
               if .shortDescription.text | startswith("Semgrep Finding: ") then
@@ -248,5 +247,6 @@ jobs:
           github_workflow: ${{ github.workflow }}
           github_repository: ${{ github.repository }}
           github_run_id: ${{ github.run_id }}
-          step_conclusion: failure()
-          slack_webhook: ${{ secrets.SDLC_SLACK_NOTIFICATIONS }}          
+          step_conclusion: ${{ steps.failing.conclusion }}
+          slack_webhook: ${{ secrets.SDLC_SLACK_NOTIFICATIONS }}
+          

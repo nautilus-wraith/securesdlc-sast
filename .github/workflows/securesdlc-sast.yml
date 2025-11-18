@@ -134,7 +134,7 @@ jobs:
         run: |
           jq '(.runs[].tool.driver.name) = "Code (SecureSDLC)"' semgrep-severities-updated.sarif > semgrep-tool-name-updated.sarif
 
-      - name: Convert Vulnerability name in the dashboard
+      - name: Convert Vulnerability names in the dashboard to human-readable form
         run: |
           jq '
             .runs[0].tool.driver.rules[] |=
@@ -177,5 +177,5 @@ jobs:
           github_repository: ${{ github.repository }}
           github_run_id: ${{ github.run_id }}
           step_conclusion: ${{ steps.failing.conclusion }}
-          slack_webhook: ${{ secrets.SDLC_SLACK_NOTIFICATIONS }}          
-
+          slack_webhook: ${{ secrets.SDLC_SLACK_NOTIFICATIONS }}
+          
