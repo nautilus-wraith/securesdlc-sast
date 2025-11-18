@@ -139,50 +139,49 @@ jobs:
         run: |          
           jq '(.runs[].tool.driver.name) = "Supply Chain (SecureSDLC)"' semgrep-severities-updated.sarif > semgrep-tool-name-updated.sarif
           
-      - name: Enrich with EPSS scores
-        container:
-          image: ghcr.io/nautilus-wraith/sca-enricher:latest # pushed from https://***/application-security/docker-images/sca-enricher
-        run: |
-          echo "Starting enrichment process..."
+      # Needs ghcr.io/nautilus-wraith/sca-enricher:latest # pushed from https://***/application-security/docker-images/sca-enricher    
+      # - name: Enrich with EPSS scores
+      #   run: |
+      #     echo "Starting enrichment process..."
 
-          # Add errors field for enricher compatibility
-          jq '. + {"errors": []}' semgrep-tool-name-updated.sarif > semgrep-pre-enrich.sarif
+      #     # Add errors field for enricher compatibility
+      #     jq '. + {"errors": []}' semgrep-tool-name-updated.sarif > semgrep-pre-enrich.sarif
           
-          if [ -f semgrep-pre-enrich.sarif ]; then
-            echo "✅ SARIF file exists, proceeding with enrichment"
-            echo "File size: $(wc -c < semgrep-pre-enrich.sarif) bytes"
-            echo "Results count: $(jq '.runs[0].results | length' semgrep-pre-enrich.sarif)"
+      #     if [ -f semgrep-pre-enrich.sarif ]; then
+      #       echo "✅ SARIF file exists, proceeding with enrichment"
+      #       echo "File size: $(wc -c < semgrep-pre-enrich.sarif) bytes"
+      #       echo "Results count: $(jq '.runs[0].results | length' semgrep-pre-enrich.sarif)"
             
-            # FIXED: Add --platform github to parse SARIF format correctly
-            /app/sdlc-sca-enricher \
-              --platform github \
-              --semgrep-findings semgrep-pre-enrich.sarif \
-              --write-destination enriched_results.json \
-              --min-value 0.85 \
-              --epss-file /app/epss_scores-current.csv > /dev/null 2>&1
+      #       # FIXED: Add --platform github to parse SARIF format correctly
+      #       /app/sdlc-sca-enricher \
+      #         --platform github \
+      #         --semgrep-findings semgrep-pre-enrich.sarif \
+      #         --write-destination enriched_results.json \
+      #         --min-value 0.85 \
+      #         --epss-file /app/epss_scores-current.csv > /dev/null 2>&1
               
-            echo "✅ Enrichment completed successfully"
-          else
-            echo "❌ No SARIF file found"
-            exit 1
-          fi
+      #       echo "✅ Enrichment completed successfully"
+      #     else
+      #       echo "❌ No SARIF file found"
+      #       exit 1
+      #     fi
 
-      - name: Convert enriched results for GitHub Dashboard
-        run: |
-          echo "Converting enriched SARIF results for GitHub upload..."
+      # - name: Convert enriched results for GitHub Dashboard
+      #   run: |
+      #     echo "Converting enriched SARIF results for GitHub upload..."
           
-          if [ -f enriched_results.json ]; then
-            echo "✅ Enriched results found, using them for GitHub upload"
-            # The enricher with --platform github outputs SARIF directly
-            cp enriched_results.json semgrep-post-enrich.sarif
+      #     if [ -f enriched_results.json ]; then
+      #       echo "✅ Enriched results found, using them for GitHub upload"
+      #       # The enricher with --platform github outputs SARIF directly
+      #       cp enriched_results.json semgrep-post-enrich.sarif
             
-            # Log enrichment results (without exposing vulnerability details)
-            echo "🔍 Enrichment Statistics:"
-            echo "Original results: $(jq '.runs[0].results | length' semgrep-post-enrich.sarif)"
-            echo "Post-enrichment file size: $(wc -c < semgrep-post-enrich.sarif) bytes"
-          else
-            echo "❌ No enriched results found, falling back to original SARIF"
-          fi
+      #       # Log enrichment results (without exposing vulnerability details)
+      #       echo "🔍 Enrichment Statistics:"
+      #       echo "Original results: $(jq '.runs[0].results | length' semgrep-post-enrich.sarif)"
+      #       echo "Post-enrichment file size: $(wc -c < semgrep-post-enrich.sarif) bytes"
+      #     else
+      #       echo "❌ No enriched results found, falling back to original SARIF"
+      #     fi
 
       - name: Convert Vulnerability names in the dashboard to human-readable form
         run: |
@@ -219,12 +218,9 @@ jobs:
               else
                 .
               end
-          ' semgrep-post-enrich.sarif > semgrep-names-converted.sarif
+          # ' semgrep-post-enrich.sarif > semgrep-final.sarif # When using SCA Enricher
+          ' semgrep-tool-name-updated.sarif > semgrep-final.sarif
           
-          # Replace the final SARIF with the name-converted version
-          mv semgrep-names-converted.sarif semgrep-final.sarif
-          echo "✅ Vulnerability names converted successfully"
-
       # - name: Create clean SARIF for GitHub upload
       #   run: |
       #     # Remove the top-level errors field for GitHub compatibility
