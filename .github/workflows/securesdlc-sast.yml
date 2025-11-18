@@ -20,7 +20,7 @@ on:
 jobs:
   securesdlc-visibility-check:
     name: Repo visibility check
-    continue-on-error: true 
+    continue-on-error: true # For private repos withou GHAS publishing fails. Also we do not want to block devs' pipelines in general.
     runs-on: ubuntu-24.04
     permissions:
       contents: read # for actions/checkout to fetch code
@@ -54,7 +54,7 @@ jobs:
       - name: Display Visibility
         run: echo "Repository visibility is ${{ steps.get_visibility.outputs.visibility }}"
 
-  semgrep:
+  semgrep-sast:
     name: SecureSDLC SAST
     continue-on-error: true    
     needs: [securesdlc-visibility-check]
@@ -75,11 +75,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+
       - name: Identify the last Committer
         run: |
           # Shortening last committer. Some committers are bots with long names or not permitted chars
           LAST_COMMITTER_SHORTENED=$(echo "${LAST_COMMITTER:0:26}")
           echo "LAST_COMMITTER_SHORTENED=$LAST_COMMITTER_SHORTENED" >> "$GITHUB_ENV"
+
       - name: Generate Semgrep Tags
         run: |
           echo "Overwriting .semgrepconfig.yml"
@@ -117,7 +119,6 @@ jobs:
           EOF
           fi
 
-
       # https://docs.github.com/en/code-security/code-scanning/integrating-with-code-scanning/sarif-support-for-code-scanning
       - name: Convert SARIF levels to severities
         run: |
@@ -133,7 +134,7 @@ jobs:
         run: |
           jq '(.runs[].tool.driver.name) = "Code (SecureSDLC)"' semgrep-severities-updated.sarif > semgrep-tool-name-updated.sarif
 
-      - name: Convert Vulnerability name in the dashboard
+      - name: Convert Vulnerability names in the dashboard to human-readable form
         run: |
           jq '
             .runs[0].tool.driver.rules[] |=
@@ -161,22 +162,20 @@ jobs:
           path: semgrep-final.sarif
           retention-days: 5
           
-      # Fails gracefully for private repos when GitHub Advanced Security is not enabled. We can not split dashbaord and PR annotations - be careful about public PRs.
-      - name: Publish findings to the dashboard and annotate PRs # allowed for non-public repos and public repos only when not a PR
+      - name: Publish findings to the dashboard and annotate PRs # Allowed for non-public repos and public repos except for PRs- to supress findings in public PR annotations.
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' || (needs.securesdlc-visibility-check.outputs.visibility == 'public' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) }}
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: semgrep-final.sarif
+          wait-for-processing: false
 
       - name: Notify in Slack on failure
         if: failure()
-        env:
-          SLACK_WEBHOOK: ${{ secrets.SDLC_SLACK_NOTIFICATIONS }}
         uses: nautilus-wraith/securesdlc-helpers/.github/actions/healthcheck@release-stable
         with:
           github_workflow: ${{ github.workflow }}
           github_repository: ${{ github.repository }}
           github_run_id: ${{ github.run_id }}
           step_conclusion: ${{ steps.failing.conclusion }}
-          slack_webhook: ${{ secrets.SDLC_SLACK_NOTIFICATIONS }}          
-
+          slack_webhook: ${{ secrets.SDLC_SLACK_NOTIFICATIONS }}
+          
