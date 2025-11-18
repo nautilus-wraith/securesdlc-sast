@@ -62,7 +62,7 @@ jobs:
     if: ${{ github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/nautilus-wraith/sca-enricher:latest # pushed from https://***/application-security/docker-images/sca-enricher
+      image: ghcr.io/nautilus-wraith/docker-semgrep/semgrep:1.124.0
     permissions:
       contents: read # for actions/checkout to fetch code
       security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
@@ -120,8 +120,7 @@ jobs:
                 },
                 "results": []
               }
-            ],
-            "errors": []
+            ]
           }
           EOF
           fi
@@ -141,21 +140,23 @@ jobs:
           jq '(.runs[].tool.driver.name) = "Supply Chain (SecureSDLC)"' semgrep-severities-updated.sarif > semgrep-tool-name-updated.sarif
           
       - name: Enrich with EPSS scores
+        container:
+          image: ghcr.io/nautilus-wraith/sca-enricher:latest # pushed from https://***/application-security/docker-images/sca-enricher
         run: |
           echo "Starting enrichment process..."
 
           # Add errors field for enricher compatibility
-          jq '. + {"errors": []}' semgrep-tool-name-updated.sarif > semgrep-final.sarif
+          jq '. + {"errors": []}' semgrep-tool-name-updated.sarif > semgrep-pre-enrich.sarif
           
-          if [ -f semgrep-final.sarif ]; then
+          if [ -f semgrep-pre-enrich.sarif ]; then
             echo "✅ SARIF file exists, proceeding with enrichment"
-            echo "File size: $(wc -c < semgrep-final.sarif) bytes"
-            echo "Results count: $(jq '.runs[0].results | length' semgrep-final.sarif)"
+            echo "File size: $(wc -c < semgrep-pre-enrich.sarif) bytes"
+            echo "Results count: $(jq '.runs[0].results | length' semgrep-pre-enrich.sarif)"
             
             # FIXED: Add --platform github to parse SARIF format correctly
             /app/sdlc-sca-enricher \
               --platform github \
-              --semgrep-findings semgrep-final.sarif \
+              --semgrep-findings semgrep-pre-enrich.sarif \
               --write-destination enriched_results.json \
               --min-value 0.85 \
               --epss-file /app/epss_scores-current.csv > /dev/null 2>&1
@@ -173,12 +174,12 @@ jobs:
           if [ -f enriched_results.json ]; then
             echo "✅ Enriched results found, using them for GitHub upload"
             # The enricher with --platform github outputs SARIF directly
-            cp enriched_results.json semgrep-final.sarif
+            cp enriched_results.json semgrep-post-enrich.sarif
             
             # Log enrichment results (without exposing vulnerability details)
             echo "🔍 Enrichment Statistics:"
-            echo "Original results: $(jq '.runs[0].results | length' semgrep-final.sarif)"
-            echo "Post-enrichment file size: $(wc -c < semgrep-final.sarif) bytes"
+            echo "Original results: $(jq '.runs[0].results | length' semgrep-post-enrich.sarif)"
+            echo "Post-enrichment file size: $(wc -c < semgrep-post-enrich.sarif) bytes"
           else
             echo "❌ No enriched results found, falling back to original SARIF"
           fi
@@ -218,32 +219,32 @@ jobs:
               else
                 .
               end
-          ' semgrep-final.sarif > semgrep-names-converted.sarif
+          ' semgrep-post-enrich.sarif > semgrep-names-converted.sarif
           
           # Replace the final SARIF with the name-converted version
           mv semgrep-names-converted.sarif semgrep-final.sarif
           echo "✅ Vulnerability names converted successfully"
 
-      - name: Create clean SARIF for GitHub upload
-        run: |
-          # Remove the top-level errors field for GitHub compatibility
-          jq 'del(.errors)' semgrep-final.sarif > semgrep-github.sarif
+      # - name: Create clean SARIF for GitHub upload
+      #   run: |
+      #     # Remove the top-level errors field for GitHub compatibility
+      #     jq 'del(.errors)' semgrep-final.sarif > semgrep-final.sarif
 
       - name: Upload Semgrep artifact
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }}
         uses: actions/upload-artifact@v4
         with:
           name: Semgrep SCA scan results
-          path: semgrep-github.sarif
+          path: semgrep-final.sarif
           retention-days: 5
-
+          
       - name: Publish findings to the dashboard and annotate PRs # Allowed for non-public repos and public repos except for PRs- to supress findings in public PR annotations.
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' || (needs.securesdlc-visibility-check.outputs.visibility == 'public' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) }}
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: semgrep-github.sarif
+          sarif_file: semgrep-final.sarif
           wait-for-processing: false
-    
+
       - name: Notify in Slack on failure
         if: failure()
         uses: nautilus-wraith/securesdlc-helpers/.github/actions/healthcheck@release-stable
