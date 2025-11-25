@@ -186,7 +186,7 @@ jobs:
           echo "Post-enrichment results count: $(jq '.runs[0].results | length' semgrep-reachable.sarif)"
           echo "Keeping only 'reachable' vulnerabilities for security dashboard"
 
-          echo semgrep-reachable.sarif
+          cat semgrep-reachable.sarif
 
       - name: SCA Enricher (custom) - keep high epss only
         run: |
@@ -272,7 +272,7 @@ jobs:
           # Overwrite semgrep-final.sarif with filtered version
           mv semgrep-epss-filtered.sarif semgrep-final.sarif
 
-          echo semgrep-final.sarif
+          cat semgrep-final.sarif
 
           echo "✅ EPSS filtering completed"
           echo "📊 Post-EPSS filtering results count: $(jq '.runs[0].results | length' semgrep-final.sarif)"
