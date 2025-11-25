@@ -80,6 +80,8 @@ jobs:
       - name: Display enriched results
         run: |
           ls -la
+          ls /
+          ls /opt
           head -n 10 epss.csv
           cat epss.csv
 
