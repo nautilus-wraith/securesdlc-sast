@@ -181,10 +181,12 @@ jobs:
 
           # Filter to keep only reachable exposures
           jq '.runs[].results |= map(select(.properties.exposure == "reachable"))' \
-            semgrep-pre-enriched.sarif > semgrep-final.sarif
+            semgrep-pre-enriched.sarif > semgrep-reachable.sarif
 
-          echo "Post-enrichment results count: $(jq '.runs[0].results | length' semgrep-final.sarif)"
+          echo "Post-enrichment results count: $(jq '.runs[0].results | length' semgrep-reachable.sarif)"
           echo "Keeping only 'reachable' vulnerabilities for security dashboard"
+
+          echo semgrep-reachable.sarif
 
       - name: SCA Enricher (custom) - keep high epss only
         run: |
@@ -197,7 +199,7 @@ jobs:
           fi
 
           echo "✅ EPSS CSV found"
-          echo "📊 Pre-EPSS filtering results count: $(jq '.runs[0].results | length' semgrep-final.sarif)"
+          echo "📊 Pre-EPSS filtering results count: $(jq '.runs[0].results | length' semgrep-reachable.sarif)"
 
           # Convert CSV to JSON for easier jq processing (skip header, create lookup object)
           # Format: {"CVE-XXXX": "0.xxxxx", ...}
@@ -265,10 +267,12 @@ jobs:
           # Apply the filter
           echo "🔍 Filtering results by EPSS threshold (>= 0.85)..."
           jq --slurpfile epss_data epss_lookup.json -f filter_by_epss.jq \
-            semgrep-final.sarif > semgrep-epss-filtered.sarif
+            semgrep-reachable.sarif > semgrep-epss-filtered.sarif
 
           # Overwrite semgrep-final.sarif with filtered version
           mv semgrep-epss-filtered.sarif semgrep-final.sarif
+
+          echo semgrep-final.sarif
 
           echo "✅ EPSS filtering completed"
           echo "📊 Post-EPSS filtering results count: $(jq '.runs[0].results | length' semgrep-final.sarif)"
