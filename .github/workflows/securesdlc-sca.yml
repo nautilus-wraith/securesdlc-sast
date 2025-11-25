@@ -62,7 +62,7 @@ jobs:
     if: ${{ github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/nautilus-wraith/docker-semgrep/semgrep:1.124.0
+      image: ghcr.io/nautilus-wraith/docker-semgrep/semgrep:latest
     permissions:
       contents: read # for actions/checkout to fetch code
       security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
@@ -185,6 +185,12 @@ jobs:
 
           echo "Post-enrichment results count: $(jq '.runs[0].results | length' semgrep-final.sarif)"
           echo "Keeping only 'reachable' vulnerabilities for security dashboard"
+
+
+      - name: Display enriched results
+        run: |
+          head -n 10 epss.csv
+          cat epss.csv
 
       - name: Upload Semgrep artifact
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }}
