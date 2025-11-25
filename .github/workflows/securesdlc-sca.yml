@@ -277,6 +277,7 @@ jobs:
           # Cleanup temporary files
           rm -f epss_lookup.json filter_by_epss.jq
 
+          cat semgrep-final.sarif
 
       - name: Upload Semgrep artifact
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }}
