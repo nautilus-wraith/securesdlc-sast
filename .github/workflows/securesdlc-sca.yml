@@ -210,9 +210,9 @@ jobs:
           # Create a script to extract CVE from markdown and check EPSS
           # This will be used by jq to filter results
           cat > filter_by_epss.jq <<'EOF'
-          # Load EPSS lookup data
+          # Load EPSS lookup data (--slurpfile loads as array, so get first element)
           . as $sarif |
-          $epss_data as $epss |
+          $epss_data[0] as $epss |
 
           # Create a map of ruleId -> CVE from the rules array
           (
