@@ -185,7 +185,6 @@ jobs:
 
           echo "Post-enrichment results count: $(jq '.runs[0].results | length' semgrep-final.sarif)"
           echo "Keeping only 'reachable' vulnerabilities for security dashboard"
-          cat semgrep-final.sarif
 
       - name: Upload Semgrep artifact
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }}
