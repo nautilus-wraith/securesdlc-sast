@@ -77,6 +77,13 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Display enriched results
+        run: |
+          ls -la
+          head -n 10 epss.csv
+          cat epss.csv
+
+
       - name: Identify the last Committer
         run: |
           # Shortening last committer. Some committers are bots with long names or not permitted chars
