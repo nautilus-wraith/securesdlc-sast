@@ -62,7 +62,7 @@ jobs:
     if: ${{ github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/nautilus-wraith/docker-semgrep/semgrep:1.124.0
+      image: ghcr.io/nautilus-wraith/docker-semgrep/semgrep:1.144.0
     permissions:
       contents: read # for actions/checkout to fetch code
       security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
@@ -173,7 +173,7 @@ jobs:
               end
           ' semgrep-tool-name-updated.sarif > semgrep-pre-enriched.sarif
 
-      - name: SCA Enricher (custom)
+      - name: SCA Enricher (custom) - keep reachable only
         run: |
           echo "Starting SCA enrichment - filtering for reachable exposures only..."
 
@@ -181,10 +181,101 @@ jobs:
 
           # Filter to keep only reachable exposures
           jq '.runs[].results |= map(select(.properties.exposure == "reachable"))' \
-            semgrep-pre-enriched.sarif > semgrep-final.sarif
+            semgrep-pre-enriched.sarif > semgrep-reachable.sarif
 
-          echo "Post-enrichment results count: $(jq '.runs[0].results | length' semgrep-final.sarif)"
+          echo "Post-enrichment results count: $(jq '.runs[0].results | length' semgrep-reachable.sarif)"
           echo "Keeping only 'reachable' vulnerabilities for security dashboard"
+
+      - name: SCA Enricher (custom) - keep high epss only
+        run: |
+          echo "Starting EPSS filtering - keeping only findings with EPSS >= 0.85..."
+
+          # Validate EPSS CSV exists
+          if [ ! -f /opt/epss.csv ]; then
+            echo "❌ EPSS CSV file not found at /opt/epss.csv"
+            exit 1
+          fi
+
+          echo "✅ EPSS CSV found"
+          echo "📊 Pre-EPSS filtering results count: $(jq '.runs[0].results | length' semgrep-reachable.sarif)"
+
+          # Convert CSV to JSON for easier jq processing (skip header, create lookup object)
+          # Format: {"CVE-XXXX": "0.xxxxx", ...}
+          echo "📥 Loading EPSS data..."
+          tail -n +2 /opt/epss.csv | awk -F',' '{print "\"" $1 "\": \"" $2 "\""}' | \
+            sed '1s/^/{/; $s/$/}/; 2,$s/^/,/' > epss_lookup.json
+
+          echo "✅ EPSS lookup created with $(jq 'length' epss_lookup.json) entries"
+
+          # Create a script to extract CVE from markdown and check EPSS
+          # This will be used by jq to filter results
+          cat > filter_by_epss.jq <<'EOF'
+          # Load EPSS lookup data (--slurpfile loads as array, so get first element)
+          . as $sarif |
+          $epss_data[0] as $epss |
+
+          # Create a map of ruleId -> CVE from the rules array
+          (
+            $sarif.runs[0].tool.driver.rules // [] |
+            map({
+              id: .id,
+              cve: (
+                (.help.markdown // .help.text // "") |
+                # Extract CVE pattern (CVE-YYYY-NNNNN+)
+                match("CVE-[0-9]{4}-[0-9]+") |
+                .string
+              )
+            }) |
+            map(select(.cve != null)) |
+            map({(.id): .cve}) |
+            add // {}
+          ) as $rule_to_cve |
+
+          # Filter results: keep only if CVE has EPSS >= 0.85
+          .runs[0].results |= map(
+            . as $result |
+            $rule_to_cve[$result.ruleId] as $cve |
+            if $cve and $epss[$cve] then
+              ($epss[$cve] | tonumber) as $epss_score |
+              if $epss_score >= 0.85 then
+                . + {
+                  properties: (.properties + {
+                    epss_score: ($epss_score | tostring),
+                    cve: $cve
+                  })
+                }
+              else
+                empty
+              end
+            else
+              # No CVE found or no EPSS data - filter out
+              empty
+            end
+          ) |
+
+          # Also filter rules to keep only those referenced by remaining results
+          (
+            [.runs[0].results[].ruleId] | unique
+          ) as $used_rule_ids |
+          .runs[0].tool.driver.rules |= map(
+            select(.id as $id | $used_rule_ids | index($id))
+          )
+          EOF
+
+          # Apply the filter
+          echo "🔍 Filtering results by EPSS threshold (>= 0.85)..."
+          jq --slurpfile epss_data epss_lookup.json -f filter_by_epss.jq \
+            semgrep-reachable.sarif > semgrep-epss-filtered.sarif
+
+          # Overwrite semgrep-final.sarif with filtered version
+          mv semgrep-epss-filtered.sarif semgrep-final.sarif
+
+          echo "✅ EPSS filtering completed"
+          echo "📊 Post-EPSS filtering results count: $(jq '.runs[0].results | length' semgrep-final.sarif)"
+          echo "🎯 Keeping only high-risk vulnerabilities (EPSS >= 0.85)"
+
+          # Cleanup temporary files
+          rm -f epss_lookup.json filter_by_epss.jq
 
       - name: Upload Semgrep artifact
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }}
