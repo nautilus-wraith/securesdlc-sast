@@ -15,7 +15,7 @@ on:
   # pull_request_target: {} # Gives workflows excessive permissions. Not wanted.
   push: # Used for local testing.
     branches:
-      - '**' 
+      - '**'
 
 jobs:
   securesdlc-visibility-check:
@@ -56,10 +56,10 @@ jobs:
 
   semgrep-sast:
     name: SecureSDLC SAST
-    continue-on-error: true    
+    continue-on-error: true
     needs: [securesdlc-visibility-check]
     if: ${{ github.actor != 'dependabot[bot]' }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     container:
       image: ghcr.io/nautilus-wraith/docker-semgrep/semgrep:1.161.0
     permissions:
@@ -96,10 +96,10 @@ jobs:
         timeout-minutes: 10
         # run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif > /dev/null 2>&1 || true
         run: |
-          semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif 
+          semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif
           cat semgrep.sarif
-        
-        
+
+
       - name: Create empty SARIF if none exists
         run: |
           if [ ! -f semgrep.sarif ]; then
@@ -157,7 +157,7 @@ jobs:
                 .
               end
           ' semgrep-tool-name-updated.sarif > semgrep-final.sarif
-         
+
       - name: Upload Semgrep artifact
         if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' }}
         uses: actions/upload-artifact@v4
@@ -182,4 +182,4 @@ jobs:
           github_run_id: ${{ github.run_id }}
           step_conclusion: ${{ steps.failing.conclusion }}
           slack_webhook: ${{ secrets.SDLC_SLACK_NOTIFICATIONS }}
-          
+
