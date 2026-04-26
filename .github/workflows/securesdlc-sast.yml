@@ -94,7 +94,11 @@ jobs:
 
       - name: Run Semgrep SAST scan # suppressed output
         timeout-minutes: 10
-        run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif > /dev/null 2>&1 || true
+        # run: semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif > /dev/null 2>&1 || true
+        run: |
+          semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif 
+          cat semgrep.sarif
+        
         
       - name: Create empty SARIF if none exists
         run: |
