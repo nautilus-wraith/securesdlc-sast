@@ -163,14 +163,14 @@ jobs:
           retention-days: 5
 
       - name: Publish findings to the dashboard and annotate PRs # Allowed for non-public repos and public repos except for PRs- to supress findings in public PR annotations.
-        if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' || (needs.securesdlc-visibility-check.outputs.visibility == 'public' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) }}
+        if: ${{ needs.securesdlc-visibility-check.outputs.visibility != 'public' || (needs.securesdlc-visibility-check.outputs.visibility == 'public' && github.event_name != 'pull_request') }}
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: semgrep-final.sarif
-          wait-for-processing: false
+          category: code
 
       - name: Notify in Slack on failure
-        if: failure()
+        if: ${{ failure() && steps.detect_workflows.outputs.has_workflows != 'false' }} # Notify if workflows exist (true) or the job failed before detecting the workflows (none). False means there are no workflows and in that case we always suppress notifications.
         uses: nautilus-wraith/securesdlc-helpers/.github/actions/healthcheck@release-stable
         with:
           github_workflow: ${{ github.workflow }}
