@@ -72,7 +72,7 @@ jobs:
       LAST_COMMITTER: ${{ github.actor }}
       GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           persist-credentials: false
 
@@ -174,7 +174,7 @@ jobs:
           category: code
 
       - name: Notify in Slack on failure
-        if: ${{ failure() && steps.detect_workflows.outputs.has_workflows != 'false' }} # Notify if workflows exist (true) or the job failed before detecting the workflows (none). False means there are no workflows and in that case we always suppress notifications.
+        if: failure()
         uses: nautilus-wraith/securesdlc-helpers/.github/actions/healthcheck@release-stable
         with:
           github_workflow: ${{ github.workflow }}
