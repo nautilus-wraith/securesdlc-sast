@@ -59,6 +59,7 @@ jobs:
         timeout-minutes: 10
         run: |
           semgrep ci --supply-chain --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif || true
+          cat semgrep.sarif
 
       - name: Create empty SARIF if none exists
         run: |
