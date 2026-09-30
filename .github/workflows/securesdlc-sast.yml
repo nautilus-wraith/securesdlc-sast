@@ -56,7 +56,7 @@ jobs:
           EOF
 
       - name: Run Semgrep SAST scan
-        timeout-minutes: 10
+        timeout-minutes: 30
         run: |
           semgrep ci --code --metrics off --no-suppress-errors --use-git-ignore --sarif --output semgrep.sarif || true
           cat semgrep.sarif
